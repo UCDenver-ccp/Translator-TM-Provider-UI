@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>Text Mining Assertions Search</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-U1DAWAznBHeqEIlVSCgzq+c9gqGAJn5c/t99JyeKa9xxaYpSvHU5awsuZVVFIhvj" crossorigin="anonymous"></script>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+</head>
+<body>
+	<main role="main" class="container-fluid">
+		<div class="col-lg-12 card">
+			<form class="card-body">
+				<!-- <div class="row"><input id="query" class="form-control" type="text" placeholder="query" aria-label="Query display field" disabled readonly></div> -->
+				<div class="row">
+					<div class="col-md-2 col-sm-12">
+						<label for="subjectSelect" class="form-label">Subject</label>
+						<select id="subjectSelect" class="form-select" aria-label="Default select example">
+							<option selected>Open this select menu</option>
+							{% for sub in subjects %}
+								<option value="{{ sub }}">{{ sub }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-5 col-sm-12">
+						<label for="predicateSelect" class="form-label">Predicate</label>
+						<select id="predicateSelect" class="form-select" aria-label="Default select example">
+							<option selected>Open this select menu</option>
+							{% for pre in predicates %}
+								<option value="{{ pre }}">{{ pre }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-2 col-sm-12">
+						<label for="objectSelect" class="form-label">Object</label>
+						<select id="objectSelect" class="form-select" aria-label="Default select example">
+							<option selected>Open this select menu</option>
+							{% for obj in objects %}
+								<option value="{{ obj }}">{{ obj }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="col-md-2 position-relative">
+						<button class="btn btn-primary position-absolute bottom-0" type="button" id="executeQueryButton">Execute Query</button>
+					</div>
+				</div>
+			</form>
+		</div>
+		<div class="col-lg-12 card" id="queryResultsCard">
+			<div class="card-body">
+				<h5 class="card-title" id="queryDescription">This is the plaintext of the query described above.</h5>
+				<h6 class="card-subtitle mb-2 text-muted" id="queryResultsCount">The number of results for the query.</h6>
+				<ul class="list-group" id="resultsListGroup"></ul>
+			</div>
+		</div>
+	</main>
+	<script type="text/javascript">
+		$(function() {
+			function insertStringAt(originalString, stringToAdd, index) {
+				return originalString.slice(0, index) + stringToAdd + originalString.slice(index);
+			}
+
+			function spliceStrings(originalString, spliceList) {
+				outputString = originalString;
+				spliceList.sort((a, b) => a[1] - b[1]);
+				var priorInsertLength = 0;
+				for(let i = 0; i < spliceList.length; i++) {
+					outputString = insertStringAt(outputString, spliceList[i][0], spliceList[i][1] + priorInsertLength);
+					priorInsertLength += spliceList[i][0].length;
+				}
+				return outputString;
+			}
+
+			function createListItem(item) {
+				let subject_start = parseInt(item.subject_span.split('|')[0], 10);
+				let subject_end = parseInt(item.subject_span.split('|')[1], 10);
+				let object_start = parseInt(item.object_span.split('|')[0], 10);
+				let object_end = parseInt(item.object_span.split('|')[1], 10);
+				let spliceList = [['<span class="badge bg-info">', subject_start], ['</span>', subject_end],
+								['<span class="badge bg-info">', object_start], ['</span>', object_end]];
+				let sentenceHTML = spliceStrings(item.sentence, spliceList);
+				let evidenceHTML = '<a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/' + item.document_pmid.split(':')[1] + '/">'
+					+ item.document_pmid + '<small><i class="bi bi-box-arrow-up-right"></i></small></a> ' + item.document_year + ' ' + item.document_zone
+					+ ' (Confidence - ' + item.confidence_score + ') : <br>';
+				listElement = document.createElement('li');
+				listElement.className = 'list-group-item';
+				listElement.innerHTML = evidenceHTML + sentenceHTML;
+				return listElement;
+			}
+
+			$("#executeQueryButton").on("click", function() {
+				sub = $("#subjectSelect").val();
+				obj = $("#objectSelect").val();
+				pred = $("#predicateSelect").val();
+				$.ajax({
+					method: "POST",
+					url: "/query/",
+					data: JSON.stringify({subject: sub, object: obj, predicate: pred}),
+					dataType: "json",
+					contentType: "application/json"
+				}).done(function(res) {
+					let queryInfo = res.query;
+					let resultsData = res.results;
+					$("#resultsListGroup").children().remove();
+					let subject_text = queryInfo.subject_text?.id?.label.toUpperCase?.() ?? sub;
+					let object_text = queryInfo.object_text?.id?.label.toUpperCase?.() ?? obj;
+					let queryHTML = 'Searching for: '
+						+ '<span class="badge bg-info">' + subject_text + '</span> '
+						+ (queryInfo.predicate_curie.split(':')?.[1] ?? queryInfo.predicate_curie)
+						+ ' <span class="badge bg-info">' + object_text + '</span>'
+					$('#queryDescription').html(queryHTML);
+					if(resultsData.length > 0) {
+						resultsData.sort((a,b) => parseFloat(b.confidence_score) - parseFloat(a.confidence_score));
+						$('#queryResultsCount').text(resultsData.length + ' sentence(s) found');
+						let listContainer = document.getElementById('resultsListGroup');
+						resultsData.forEach((item) => {
+							listContainer.append(createListItem(item));
+						});
+					} else {
+						$("#queryResultsCount").text('No results found');
+					}
+
+				});
+			});
+		});
+	</script>
+</body>
