@@ -18,7 +18,7 @@ class Assertion(Model):
     subject_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
     object_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
     association_curie = Column(String(100))
-    evidence_list = relationship('Evidence', back_populates='assertion')
+    evidence_list = relationship('Evidence', back_populates='assertion', lazy='joined')
     subject_uniprot = relationship('PRtoUniProt', foreign_keys=subject_curie, lazy='joined')
     object_uniprot = relationship('PRtoUniProt', foreign_keys=object_curie, lazy='joined')
 
