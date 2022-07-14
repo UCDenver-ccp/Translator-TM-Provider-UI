@@ -12,6 +12,6 @@ WORKDIR $APP_HOME
 COPY . ./
 
 # Install production dependencies.
-RUN pip install Flask gunicorn SQLAlchemy mysqlclient
+RUN pip install Flask gunicorn SQLAlchemy mysqlclient flask-cache
 
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 controller:app

@@ -1,3 +1,4 @@
+import sqlalchemy
 from flask import Flask, render_template, request
 from sqlalchemy import or_
 import os
@@ -8,16 +9,24 @@ import json
 
 app = Flask(__name__)
 
+
+# Start with a hard-coded list of predicates to avoid having to query the evidence_score table for the list.
+predicates = ['biolink:entity_negatively_regulates_entity', 'biolink:entity_positively_regulates_entity',
+              'biolink:gain_of_function_contributes_to', 'biolink:loss_of_function_contributes_to', 'biolink:treats',
+              'biolink:contributes_to', 'false']
+
 @app.route('/')
 def index():
-    return render_template("mockup.html", subjects=subjects, predicates=predicates, objects=objects)
+    return render_template("freetext_search.html", predicates=predicates)
 
 @app.route('/public/', strict_slashes=False)
 def public_index():
+    (subjects, objects) = get_options()
     return render_template("mockup.html", subjects=subjects, predicates=predicates, objects=objects)
 
 @app.route('/translator/', strict_slashes=False)
 def translator_index():
+    (subjects_uniprot, objects_uniprot) = get_translated_options()
     return render_template("mockup.html", subjects=subjects_uniprot, predicates=predicates, objects=objects_uniprot)
 
 
@@ -29,31 +38,31 @@ def query():
         predicate_curie = request_dict['predicate']
         object_curie = request_dict['object']
         assertion_list = []
-        if subject_curie == 'Any':
-            if object_curie == 'Any':
-                assertion_list = s.query(models.Assertion)
+        if subject_curie.lower() == 'any':
+            if object_curie.lower() == 'any':
+                assertion_list = s.query(models.Assertion).limit(EDGE_LIMIT)
             else:
                 if object_curie.startswith('UniProtKB'):
-                    assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie))
+                    assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie)).limit(EDGE_LIMIT)
                 else:
-                    assertion_list = s.query(models.Assertion).where(models.Assertion.object_curie == object_curie)
+                    assertion_list = s.query(models.Assertion).where(models.Assertion.object_curie == object_curie).limit(EDGE_LIMIT)
         else:
             if(object_curie == 'Any'):
                 if subject_curie.startswith('UniProtKB'):
-                    assertion_list = s.query(models.Assertion).where(models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie))
+                    assertion_list = s.query(models.Assertion).where(models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie)).limit(EDGE_LIMIT)
                 else:
-                    assertion_list = s.query(models.Assertion).where(models.Assertion.subject_curie == subject_curie)
+                    assertion_list = s.query(models.Assertion).where(models.Assertion.subject_curie == subject_curie).limit(EDGE_LIMIT)
             else:
                 if object_curie.startswith('UniProtKB'):
                     if subject_curie.startswith('UniProtKB'):
-                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie), models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie))
+                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie), models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie)).limit(EDGE_LIMIT)
                     else:
-                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie), models.Assertion.subject_curie == subject_curie)
+                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_uniprot.has(models.PRtoUniProt.uniprot == object_curie), models.Assertion.subject_curie == subject_curie).limit(EDGE_LIMIT)
                 else:
                     if subject_curie.startswith('UniProtKB'):
-                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_curie == object_curie, models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie))
+                        assertion_list = s.query(models.Assertion).where(models.Assertion.object_curie == object_curie, models.Assertion.subject_uniprot.has(models.PRtoUniProt.uniprot == subject_curie)).limit(EDGE_LIMIT)
                     else:
-                        assertion_list = s.query(models.Assertion).where(models.Assertion.subject_curie == subject_curie, models.Assertion.object_curie == object_curie)
+                        assertion_list = s.query(models.Assertion).where(models.Assertion.subject_curie == subject_curie, models.Assertion.object_curie == object_curie).limit(EDGE_LIMIT)
         edges = []
         for edge in get_edge_list(assertion_list, use_uniprot=(subject_curie.startswith('UniProtKB') or object_curie.startswith('UniProtKB'))):
             if edge["predicate_curie"] == predicate_curie or predicate_curie == 'Any':
@@ -68,10 +77,26 @@ def query():
                 "object_curie": object_curie,
                 "object_text": normalized_nodes[object_curie] if object_curie in normalized_nodes else object_curie,
             },
-            "results": edges[:EDGE_LIMIT]
+            "results": edges
         }
         return json.dumps(results), 200
     return 'something else', 400
+
+
+@app.route('/api/curies/subject/', strict_slashes=False)
+def get_available_subject_curies():
+    query = sqlalchemy.select(sqlalchemy.text('DISTINCT subject_curie FROM assertion'))
+    results = [curie for curie, in s.execute(query)]
+    print(f"Subject count: {len(results)}")
+    return json.dumps(results)
+
+
+@app.route('/api/curies/object/', strict_slashes=False)
+def get_available_object_curies():
+    query = sqlalchemy.select(sqlalchemy.text('DISTINCT object_curie FROM assertion'))
+    results = [curie for curie, in s.execute(query)]
+    print(f"Object count: {len(results)}")
+    return json.dumps(results)
 
 
 def get_edge_list(assertions, use_uniprot=False):
@@ -95,17 +120,20 @@ def get_edge_list(assertions, use_uniprot=False):
                         "predicate_curie": predicate,
                         "confidence_score": ev.get_score(predicate),
                         "sentence": ev.sentence,
-                        "subject_span": ev.subject_entity.span,
-                        "object_span": ev.object_entity.span,
+                        "subject_span": ev.subject_entity.span if ev.subject_entity else "0|0",
+                        "object_span": ev.object_entity.span if ev.object_entity else "0|0",
                         "subject_curie": sub,
                         "object_curie": obj
                     })
     return edge_list
 
 
-def get_options() -> (list, list, list):
+def get_predicates() -> list:
+    return [predicate for predicate, in s.execute(sqlalchemy.select(sqlalchemy.text('DISTINCT predicate_curie FROM evidence_score')))]
+
+
+def get_options() -> (list, list):
     subject_curies = [sub[0] for sub in s.query(models.Assertion.subject_curie).distinct()]
-    predicate_curies = [pre[0] for pre in s.query(models.EvidenceScore.predicate_curie).distinct()]
     object_curies = [obj[0] for obj in s.query(models.Assertion.object_curie).distinct()]
     list_to_normalize = []
     subjects = []
@@ -115,17 +143,17 @@ def get_options() -> (list, list, list):
     normalized_nodes = services.get_normalized_nodes(list_to_normalize)
     for subject in subject_curies:
         if subject in normalized_nodes and normalized_nodes[subject] is not None:
-            subjects.append((subject, normalized_nodes[subject]["id"]["label"]))
+            subjects.append((subject, normalized_nodes[subject]['id']['label'] if 'label' in normalized_nodes[subject]['id'] else subject))
         else:
             subjects.append((subject, subject))
     for obj in object_curies:
         if obj in normalized_nodes and normalized_nodes[obj] is not None:
-            objects.append((obj, normalized_nodes[obj]["id"]["label"]))
+            objects.append((obj, normalized_nodes[obj]['id']['label'] if 'label' in normalized_nodes[obj]['id'] else obj))
         else:
             objects.append((obj, obj))
     subjects.sort(key=lambda x:x[1].upper())
     objects.sort(key=lambda x:x[1].upper())
-    return (subjects, predicate_curies, objects)
+    return (subjects, objects)
 
 
 def get_translated_options() -> (list, list):
@@ -143,12 +171,12 @@ def get_translated_options() -> (list, list):
     normalized_nodes = services.get_normalized_nodes(list_to_normalize)
     for subject in subject_curies:
         if subject in normalized_nodes and normalized_nodes[subject] is not None:
-            subjects.append((subject, normalized_nodes[subject]["id"]["label"]))
+            subjects.append((subject, normalized_nodes[subject]['id']['label'] if 'label' in normalized_nodes[subject]['id'] else subject))
         else:
             subjects.append((subject, subject))
     for obj in object_curies:
         if obj in normalized_nodes and normalized_nodes[obj] is not None:
-            objects.append((obj, normalized_nodes[obj]["id"]["label"]))
+            objects.append((obj, normalized_nodes[obj]['id']['label'] if 'label' in normalized_nodes[obj]['id'] else obj))
         else:
             objects.append((obj, obj))
     subjects.sort(key=lambda x:x[1].upper())
@@ -158,14 +186,11 @@ def get_translated_options() -> (list, list):
 
 username = os.getenv('MYSQL_DATABASE_USER', None)
 secret_password = os.getenv('MYSQL_DATABASE_PASSWORD', None)
-EDGE_LIMIT = os.getenv('EDGE_LIMIT', 500)
+EDGE_LIMIT = int(os.getenv('EDGE_LIMIT', '500'))
 assert username
 assert secret_password
 models.init_db(username=username, password=secret_password)
 s = models.session()
-(subjects, predicates, objects) = get_options()
-(subjects_uniprot, objects_uniprot) = get_translated_options()
-
 
 if __name__ == "__main__":
     print('main')

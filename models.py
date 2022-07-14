@@ -13,7 +13,7 @@ session = None
 
 class Assertion(Model):
     __tablename__ = 'assertion'
-    id = Column(Integer, primary_key=True)
+    # id = Column(Integer, primary_key=True)
     assertion_id = Column(String(65), primary_key=True)
     subject_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
     object_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
@@ -47,11 +47,11 @@ class Assertion(Model):
         subject_name = 'UNKNOWN_NAME'
         subject_category = 'biolink:NamedThing'
         if self.object_curie in normalized_nodes and normalized_nodes[self.object_curie] is not None:
-            object_name = normalized_nodes[self.object_curie]['id']['label']
-            object_category = normalized_nodes[self.object_curie]['type'][0]
+            object_name = normalized_nodes[self.object_curie]['id']['label'] if 'label' in normalized_nodes[self.object_curie]['id'] else self.object_curie
+            object_category = 'biolink:ChemicalEntity' if self.object_curie.startswith('CHEBI') else 'biolink:Protein'  # normalized_nodes[object_id]['type'][0]
         if self.subject_curie in normalized_nodes and normalized_nodes[self.subject_curie] is not None:
-            subject_name = normalized_nodes[self.subject_curie]['id']['label']
-            subject_category = normalized_nodes[self.subject_curie]['type'][0]
+            subject_name = normalized_nodes[self.subject_curie]['id']['label'] if 'label' in normalized_nodes[self.subject_curie]['id'] else self.subject_curie
+            subject_category = 'biolink:ChemicalEntity' if self.subject_curie.startswith('CHEBI') else 'biolink:Protein'  # normalized_nodes[subject_id]['type'][0]
         return [[self.object_curie, object_name, object_category],
                 [self.subject_curie, subject_name, subject_category]]
 
@@ -64,11 +64,11 @@ class Assertion(Model):
         subject_category = 'biolink:NamedThing'
 
         if object_id in normalized_nodes and normalized_nodes[object_id] is not None:
-            object_name = normalized_nodes[object_id]['id']['label']
-            object_category = normalized_nodes[object_id]['type'][0]
+            object_name = normalized_nodes[object_id]['id']['label'] if 'label' in normalized_nodes[object_id]['id'] else object_id
+            object_category = 'biolink:ChemicalEntity' if object_id.startswith('CHEBI') else 'biolink:Protein'  # normalized_nodes[object_id]['type'][0]
         if subject_id in normalized_nodes and normalized_nodes[subject_id] is not None:
-            subject_name = normalized_nodes[subject_id]['id']['label']
-            subject_category = normalized_nodes[subject_id]['type'][0]
+            subject_name = normalized_nodes[subject_id]['id']['label'] if 'label' in normalized_nodes[subject_id]['id'] else subject_id
+            subject_category = 'biolink:ChemicalEntity' if subject_id.startswith('CHEBI') else 'biolink:Protein'  # normalized_nodes[subject_id]['type'][0]
         return [[object_id, object_name, object_category],
                 [subject_id, subject_name, subject_category]]
 
@@ -315,9 +315,11 @@ def init_db(url=None, username=None, password=None):
             password=password,
             database='text_mined_assertions',
             # host='34.69.18.127',
+            # host='34.123.227.58',
             # port=3306
             query={
-                "unix_socket": "/cloudsql/lithe-vault-265816:us-central1:text-mined-assertions-stage"
+                # "unix_socket": "/cloudsql/lithe-vault-265816:us-central1:text-mined-assertions-stage"
+                "unix_socket": "/cloudsql/translator-text-workflow-dev:us-central1:text-mined-assertions-prod"
             }
         )
     engine = create_engine(url, echo=True, future=True)

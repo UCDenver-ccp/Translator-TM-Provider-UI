@@ -8,7 +8,9 @@
 	<title>Text Mining Assertions Search</title>
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
+ 	<link href = "https://code.jquery.com/ui/1.10.4/themes/ui-lightness/jquery-ui.css" rel = "stylesheet">
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+	<script src = "https://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
 </head>
 <body>
@@ -19,16 +21,7 @@
 				<div class="row">
 					<div class="col-md-2 col-sm-12">
 						<label for="subjectSelect" class="form-label">Subject</label>
-						<select id="subjectSelect" class="form-select" aria-label="Default select example">
-							<option selected>Any</option>
-							{% for sub in subjects %}
-								{% if sub[1]|length <= 50 %}
-								<option value="{{ sub[0] }}" title="{{ sub[0] }}">{{ sub[1] }}</option>
-								{% else %}
-								<option value="{{ sub[0] }}" title="{{ sub[1] }}">{{ sub[0] }}</option>
-								{% endif %}
-							{% endfor %}
-						</select>
+						<input id="subjectSelect" class="form-control" type="text" placeholder="Any">
 					</div>
 					<div class="col-md-5 col-sm-12">
 						<label for="predicateSelect" class="form-label">Predicate</label>
@@ -41,16 +34,7 @@
 					</div>
 					<div class="col-md-2 col-sm-12">
 						<label for="objectSelect" class="form-label">Object</label>
-						<select id="objectSelect" class="form-select" aria-label="Default select example">
-							<option selected>Any</option>
-							{% for obj in objects %}
-								{% if obj[1]|length <= 50 %}
-								<option value="{{ obj[0] }}" title="{{ obj[0] }}">{{ obj[1] }}</option>
-								{% else %}
-								<option value="{{ obj[0] }}" title="{{ obj[1] }}">{{ obj[0] }}</option>
-								{% endif %}
-							{% endfor %}
-						</select>
+						<input id="objectSelect" class="form-control" type="text" placeholder="Any">
 					</div>
 					<div class="col-md-2 position-relative">
 						<button class="btn btn-primary position-absolute bottom-0" type="button" id="executeQueryButton">Execute Query</button>
@@ -62,6 +46,12 @@
 			<div class="card-body">
 				<h5 class="card-title" id="queryDescription">This is the plaintext of the query described above.</h5>
 				<h6 class="card-subtitle mb-2 text-muted" id="queryResultsCount">The number of results for the query.</h6>
+				<div class="form-inline">
+					<label for="pmidFilter" class="form-label">PMID filter:</label>
+					<input id="pmidFilter" type="text" placeholder="PMID:12345678">
+					<button class="btn btn-primary btn-sm" id="applyFilterButton">Filter</button>
+					<button class="btn btn-secondary btn-sm" id="clearFilterButton">Clear Filter</button>
+				</div>
 				<!--
 				<div class="btn-group" role="group" aria-label="Toggle display results page size">
 					<input type="radio" class="btn-check" name="btnradio" id="display10RadioButton" autocomplete="off" checked>
@@ -83,10 +73,14 @@
 		</div>
 	</main>
 	<script type="text/javascript">
+
 		$(function() {
 			let pageSize = 25;
 			var curPage = 0;
+			var isFiltered = false;
 			var searchResults = [];
+			var resultsView = []
+			var subject_curies = [], object_curies = [];
 			function insertStringAt(originalString, stringToAdd, index) {
 				return originalString.slice(0, index) + stringToAdd + originalString.slice(index);
 			}
@@ -132,7 +126,10 @@
 			}
 
 			function setUpPagination() {
-				if(searchResults.length == 0) {
+				if(!isFiltered) {
+					resultsView = searchResults;
+				}
+				if(resultsView.length == 0) {
 					$('#results-pagination-list').html('');
 					$('#results-pagination-list').parent().addClass("invisible");
 					return;
@@ -141,7 +138,7 @@
 				$('#results-pagination-list').parent().removeClass("invisible");
 				var linkList = '<li class="page-item disabled"><a id="results-previous" class="page-link" aria-label="Previous">'
 					+ '<i class="bi bi-arrow-left"></i></a></li>';
-				var numberOfLinks = Math.floor((searchResults.length - 1) / pageSize) + 1;
+				var numberOfLinks = Math.floor((resultsView.length - 1) / pageSize) + 1;
 				for(var i = 0; i < numberOfLinks; i++)
 					linkList += '<li id="results-page-' + i + '" class="page-item"><a class="page-link" data-page="' + i + '">' + (i + 1) + '</a></li>';
 				linkList += '<li class="page-item"><a id="results-next" class="page-link" aria-label="Next" onclick="nextPage()">'
@@ -157,7 +154,10 @@
 			}
 
 			function updatePagination() {
-				var numberOfLinks = Math.floor((searchResults.length - 1) / pageSize) + 1;
+				if(!isFiltered) {
+					resultsView = searchResults;
+				}
+				var numberOfLinks = Math.floor((resultsView.length - 1) / pageSize) + 1;
 				if(curPage == 0) {
 					console.log('start of the journey');
 					document.getElementById('results-previous').onclick = undefined;
@@ -186,12 +186,15 @@
 
 			function displayResults() {
 				$("#resultsListGroup").children().remove();
-				if(searchResults.length > 0) {
-					searchResults.sort((a,b) => parseFloat(b.confidence_score) - parseFloat(a.confidence_score));
-					$('#queryResultsCount').text(searchResults.length + ' sentence(s) found');
+				if(!isFiltered) {
+					resultsView = searchResults;
+				}
+				if(resultsView.length > 0) {
+					resultsView.sort((a,b) => parseFloat(b.confidence_score) - parseFloat(a.confidence_score));
+					$('#queryResultsCount').text(resultsView.length + ' sentence(s) found');
 					let listContainer = document.getElementById('resultsListGroup');
-					for(var i = 0; i < pageSize && i < searchResults.length; i++) {
-						listContainer.append(createListItem(searchResults[(curPage * pageSize) + i]));
+					for(var i = 0; i < pageSize && i < resultsView.length; i++) {
+						listContainer.append(createListItem(resultsView[(curPage * pageSize) + i]));
 					}
 					/*
 					resultsData.forEach((item) => {
@@ -207,10 +210,65 @@
 				})
 			}
 
+			function getSubjectCuries() {
+				$.ajax({
+					method: "GET",
+					url: "/api/curies/subject",
+				}).done(function(results) {
+					subject_curies = JSON.parse(results);
+					$('#subjectSelect').autocomplete({
+						minLength: 2,
+						delay: 500,
+						source: subject_curies
+					})
+				});
+			}
+
+			function getObjectCuries() {
+				$.ajax({
+					method: "GET",
+					url: "/api/curies/object",
+				}).done(function(results) {
+					object_curies = JSON.parse(results);
+					$('#objectSelect').autocomplete({
+						minLength: 2,
+						delay: 500,
+						source: object_curies
+					})
+				});
+			}
+
+			function filterResultsByDocumentID(docID) {
+				if(searchResults.length == 0 || docID.length == 0) {
+					return;
+				}
+				resultsView = []
+				actualID = docID.toUpperCase();
+				searchResults.forEach(function(item) {
+					if(isNaN(actualID)) {
+						if(item.document_pmid.toUpperCase() == actualID) {
+							resultsView.push(item);
+						}
+					} else {
+						recordDocID = item.document_pmid.toUpperCase().replace('PMID:', '').replace('PMC', '');
+						if(recordDocID == actualID) {
+							resultsView.push(item);
+						}
+					}
+				});
+				isFiltered = true;
+			}
+
 			$("#executeQueryButton").on("click", function() {
 				sub = $("#subjectSelect").val();
 				obj = $("#objectSelect").val();
 				pred = $("#predicateSelect").val();
+				if(sub == '') {
+					sub = 'Any'
+				}
+				if(obj == '') {
+					obj = 'Any'
+				}
 				$.ajax({
 					method: "POST",
 					url: "/query/",
@@ -235,6 +293,23 @@
 					displayResults();
 				});
 			});
+			$("#applyFilterButton").on("click", function() {
+				pmid = $("#pmidFilter").val();
+				filterResultsByDocumentID(pmid);
+				setUpPagination();
+				displayResults();
+			});
+			$("#clearFilterButton").on("click", function() {
+				resultsView = searchResults;
+				$("#pmidFilter").val("");
+				isFiltered = false;
+				setUpPagination();
+				displayResults();
+			});
+			(function () {
+				getSubjectCuries();
+				getObjectCuries();
+			})();
 		});
 	</script>
 </body>
