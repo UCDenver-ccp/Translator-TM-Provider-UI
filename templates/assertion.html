@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+    <title>{{ title }}</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+</head>
+<body>
+	<main role="main" class="container-fluid">
+		<h4 class="text-center">
+			Assertion:
+			<span class="badge bg-primary">
+				{% if assertion.subject_uniprot %}
+					{{ assertion.subject_uniprot.uniprot }}
+				{% else %}
+					{{ assertion.subject_curie }}
+				{% endif %}
+			</span>
+			{% for predicate in assertion.get_predicates() %}
+			<span class="badge bg-secondary">{{ predicate.replace('biolink:', '') }}</span>
+			{% endfor %}
+			<span class="badge bg-info">
+				{% if assertion.object_uniprot %}
+					{{ assertion.object_uniprot.uniprot }}
+				{% else %}
+					{{ assertion.object_curie }}
+				{% endif %}
+			</span>
+		</h4>
+		<div class="accordion" id="evidenceAccordion">
+			{% for ev in assertion.evidence_list %}
+				{% if ev.get_top_predicate() != 'false' %}
+			<div class="accordion-item">
+				<h2 class="accordion-header" id="header_{{ ev.evidence_id }}">
+					<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+							data-bs-target="#collapse_{{ ev.evidence_id }}" aria-expanded="false" aria-controls="collapse_{{ ev.evidence_id }}">
+						<span id="{{ ev.evidence_id }}_2" class="evidence_sentence"
+							  data-subject-span="{{ ev.subject_entity.span }}"
+							  data-subject-text="{{ ev.subject_entity.covered_text }}"
+							  data-subject-curie="{% if ev.assertion.subject_uniprot %} {{ ev.assertion.subject_uniprot.uniprot }} {% else %} {{ ev.assertion.subject_curie }} {% endif %}"
+							  data-object-span="{{ ev.object_entity.span }}"
+							  data-object-text="{{ ev.object_entity.covered_text }}"
+							  data-object-curie="{% if ev.assertion.object_uniprot %} {{ ev.assertion.object_uniprot.uniprot }} {% else %} {{ ev.assertion.object_curie }} {% endif %}">
+							{{ ev.sentence }}
+						</span>
+					</button>
+				</h2>
+				<div id="collapse_{{ ev.evidence_id }}" class="accordion-collapse collapse" aria-labelledby="header_{{ ev.evidence_id }}" data-bs-parent="evidenceAccordion">
+						<dl class="row">
+							<dt class="col-sm-2">Publication:</dt> <dd class="col-sm-10"><a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/{{ ev.document_id }}">{{ ev.document_id }}<small><i class="bi bi-box-arrow-up-right"></i></small></a></dd>
+							<dt class="col-sm-2">Publication Year:</dt> <dd class="col-sm-10">{{ ev.actual_year.year }}</dd>
+							<dt class="col-sm-2">Document Zone:</dt> <dd class="col-sm-10">{{ ev.document_zone }}</dd>
+							<dt class="col-sm-2">Predicate:</dt> <dd class="col-sm-10">{{ ev.get_top_predicate() }}</dd>
+							<dt class="col-sm-2">Confidence:</dt> <dd class="col-sm-10">{{ ev.get_score() }}</dd>
+						</dl>
+					<button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#feedbackModal"
+							id="feedbackBtn_{{  ev.evidence_id }}"
+							data-evidence-id="{{ ev.evidence_id }}"
+							data-sentence-id="{{ ev.evidence_id }}_2"
+							data-subject-curie="{% if ev.assertion.subject_uniprot %} {{ ev.assertion.subject_uniprot.uniprot }} {% else %} {{ ev.assertion.subject_curie }} {% endif %}"
+							data-subject-text="{{ ev.subject_entity.covered_text }}"
+							data-object-text="{{ ev.object_entity.covered_text }}"
+							data-object-curie="{% if ev.assertion.object_uniprot %} {{ ev.assertion.object_uniprot.uniprot }} {% else %} {{ ev.assertion.object_curie }} {% endif %}"
+							data-predicate="{{ ev.get_top_predicate() }}">
+						Send feedback
+					</button>
+				</div>
+			</div>
+				{% endif %}
+			{% endfor %}
+		</div>
+		<div class="modal" id="feedbackModal" tabindex="-1">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title">Feedback</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+					<div class="modal-body">
+						Sentence:
+						<p id="feedbackSentence" data-evidence-id></p>
+						Assertion:
+						<p>
+							<span id="feedbackSubject"></span> |
+							<span id="feedbackPredicate"></span> |
+							<span id="feedbackObject"></span>
+						</p>
+						<div class="form-check">
+						  <input class="form-check-input" type="checkbox" value="" id="overallCheck">
+						  <label class="form-check-label" for="overallCheck">
+							Assertion does not match sentence
+						  </label>
+						</div>
+						<div class="form-check">
+						  <input class="form-check-input" type="checkbox" value="" id="subjectCheck">
+						  <label class="form-check-label" for="subjectCheck">
+							  Subject <span id="feedbackSubjectCurie"></span> is incorrect
+						  </label>
+						</div>
+						<div class="form-check">
+						  <input class="form-check-input" type="checkbox" value="" id="predicateCheck">
+						  <label class="form-check-label" for="predicateCheck">
+							  Predicate <span id="feedbackPredicateCheck"></span> is incorrect
+						  </label>
+						</div>
+						<div class="form-check">
+						  <input class="form-check-input" type="checkbox" value="" id="objectCheck">
+						  <label class="form-check-label" for="objectCheck">
+							  Object <span id="feedbackObjectCurie"></span> is incorrect
+						  </label>
+						</div>
+						<div class="form-check">
+						  <input class="form-check-input" type="checkbox" value="" id="overallOK">
+						  <label class="form-check-label" for="overallOK">
+							Assertion is correct
+						  </label>
+						</div>
+						<div class="mb-3">
+							<label for="comments" class="form-label">Additional Comments (optional):</label>
+							<input type="text" class="form-control" id="comments">
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+						<button type="button" class="btn btn-primary" id="submitButton">Send Feedback</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+	<script>
+		$(function() {
+			function insertStringAt(originalString, stringToAdd, index) {
+				return originalString.slice(0, index) + stringToAdd + originalString.slice(index);
+			}
+
+			function spliceStrings(originalString, spliceList) {
+				outputString = originalString;
+				spliceList.sort((a, b) => a[1] - b[1]);
+				var priorInsertLength = 0;
+				for(let i = 0; i < spliceList.length; i++) {
+					outputString = insertStringAt(outputString, spliceList[i][0], spliceList[i][1] + priorInsertLength);
+					priorInsertLength += spliceList[i][0].length;
+				}
+				return outputString;
+			}
+
+			function highlightText(id) {
+				sentenceElement = document.getElementById(id);
+				sentence = sentenceElement.innerText;
+				dataset = sentenceElement.dataset;
+				subject_start = parseInt(dataset.subjectSpan.split('|')[0], 10);
+				subject_end = parseInt(dataset.subjectSpan.split('|')[1], 10);
+				object_start = parseInt(dataset.objectSpan.split('|')[0], 10);
+				object_end = parseInt(dataset.objectSpan.split('|')[1], 10);
+				let spliceList = [
+					['<span class="badge bg-primary" data-bs-toggle="tooltip" title="' + dataset.subjectCurie + '">', subject_start],
+					['</span>', subject_end],
+					['<span class="badge bg-info" data-bs-toggle="tooltip" title="' + dataset.objectCurie + '">', object_start],
+					['</span>', object_end]
+				];
+				let sentenceHTML = spliceStrings(sentence, spliceList);
+				sentenceElement.innerHTML = sentenceHTML;
+			}
+
+			function sendFeedback() {
+				feedbackObject = {
+					'evidence_id' : document.getElementById('feedbackSentence').dataset.evidenceId,
+					'overall_correct' : !document.getElementById('overallCheck').checked,
+					'subject_correct' : !document.getElementById('subjectCheck').checked,
+					'object_correct' : !document.getElementById('objectCheck').checked,
+					'predicate_correct' : !document.getElementById('predicateCheck').checked
+				}
+				commentText = document.getElementById('comments').value
+				if(commentText.length > 0) {
+					feedbackObject['comments'] = commentText;
+				}
+				$.ajax({
+					url : '/evaluations',
+					type : 'POST',
+					dataType: 'json',
+					contentType: 'application/json;charset=utf-8',
+					data : JSON.stringify(feedbackObject),
+					success : function() {
+						feedbackBtn = $('#feedbackBtn_' + document.getElementById('feedbackSentence').dataset.evidenceId);
+						$('#feedbackModal').modal('hide');
+						feedbackBtn.prop('disabled', true);
+						feedbackBtn.html('Feedback sent')
+					},
+					error : function(request,error)
+					{
+						console.log("Request: " + JSON.stringify(request));
+					}
+				});
+			}
+
+			// Highlight the subject and object of every evidence sentence.
+			Array.prototype.forEach.call(document.getElementsByClassName('evidence_sentence'), function(element) {
+				highlightText(element.id);
+			});
+
+			// Set up the modal to populate with the dataset of the button used to call it.
+			const feedbackModal = document.getElementById('feedbackModal');
+			feedbackModal.addEventListener('show.bs.modal', event => {
+				const button = event.relatedTarget;
+				document.getElementById('feedbackSentence').innerHTML = document.getElementById(button.dataset.sentenceId).innerHTML;
+				document.getElementById('feedbackSentence').dataset.evidenceId = button.dataset.evidenceId
+				document.getElementById('feedbackSubject').innerHTML = button.dataset.subjectText;
+				document.getElementById('feedbackObject').innerHTML = button.dataset.objectText;
+				document.getElementById('feedbackPredicate').innerHTML = button.dataset.predicate.replace('biolink:', '');
+				document.getElementById('feedbackPredicateCheck').innerHTML = '(' + button.dataset.predicate.replace('biolink:', '') + ')';
+				document.getElementById('feedbackSubjectCurie').innerHTML = '(' + button.dataset.subjectCurie + ')';
+				document.getElementById('feedbackObjectCurie').innerHTML = '(' + button.dataset.objectCurie + ')';
+				$('input[type=checkbox]').prop('checked', false);
+			});
+
+			var checkboxes = document.querySelectorAll("input[type=checkbox]");
+			checkboxes.forEach(function(checkbox) {
+				checkbox.addEventListener('change', function() {
+					if (checkbox.checked) {
+						if (checkbox.id == 'overallOK') {
+							$('input[type=checkbox]').not('#overallOK').prop('checked', false);
+						} else {
+							$('#overallOK').prop('checked', false);
+						}
+					}
+				});
+			});
+
+			document.getElementById('submitButton').addEventListener('click', sendFeedback);
+		});
+	</script>
+</body>
+</html>

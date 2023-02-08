@@ -1,7 +1,9 @@
 import os
 import json
 import sqlalchemy
-from sqlalchemy import Column, String, Integer, Boolean, Float, ForeignKey, UniqueConstraint, create_engine
+import pymysql.connections
+from google.cloud.sql.connector import Connector
+from sqlalchemy import Column, String, Integer, Boolean, Float, Text, ForeignKey, DateTime, UniqueConstraint, create_engine
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -13,7 +15,6 @@ session = None
 
 class Assertion(Model):
     __tablename__ = 'assertion'
-    # id = Column(Integer, primary_key=True)
     assertion_id = Column(String(65), primary_key=True)
     subject_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
     object_curie = Column(String(100), ForeignKey('pr_to_uniprot.pr'))
@@ -35,7 +36,9 @@ class Assertion(Model):
         return predicate_scores_dict
 
     def get_predicates(self) -> set:
-        return set(evidence.get_top_predicate() for evidence in self.evidence_list)
+        return set(evidence.get_top_predicate()
+                   for evidence in self.evidence_list
+                   if evidence.get_top_predicate() != 'false')
 
     def get_aggregate_score(self, predicate) -> float:
         relevant_scores = [evidence.get_score() for evidence in self.evidence_list if evidence.get_top_predicate() == predicate]
@@ -153,20 +156,24 @@ class Entity(Model):
 class Evaluation(Model):
     __tablename__ = 'evaluation'
     id = Column(Integer, primary_key=True)
-    assertion_id = Column(String(65), ForeignKey('assertion.assertion_id'))
+    evidence_id = Column(String(65), ForeignKey('evidence.evidence_id'))
     overall_correct = Column(Boolean)
     subject_correct = Column(Boolean)
     object_correct = Column(Boolean)
     predicate_correct = Column(Boolean)
-    api_keys_id = Column(Integer)
+    source_id = Column(Integer)
+    create_datetime = Column(DateTime)
+    comments = Column(Text)
 
-    def __init__(self, assertion_id, overall_correct, subject_correct, object_correct, predicate_correct, api_keys_id):
-        self.assertion_id = assertion_id
+    def __init__(self, assertion_id, overall_correct, subject_correct, object_correct, predicate_correct, source_id, create_datetime, comments):
+        self.evidence_id = assertion_id
         self.overall_correct = overall_correct
         self.subject_correct = subject_correct
         self.object_correct = object_correct
         self.predicate_correct = predicate_correct
-        self.api_keys_id = api_keys_id
+        self.source_id = source_id
+        self.create_datetime = create_datetime
+        self.comments = comments
 
 
 class Evidence(Model):
@@ -174,7 +181,7 @@ class Evidence(Model):
     evidence_id = Column(String(65), primary_key=True)
     assertion_id = Column(String(65), ForeignKey('assertion.assertion_id'))
     assertion = relationship('Assertion', back_populates='evidence_list')
-    document_id = Column(String(45))
+    document_id = Column(String(45), ForeignKey('document_year.document_id'))
     sentence = Column(String(2000))
     subject_entity_id = Column(String(65), ForeignKey('entity.entity_id'))
     subject_entity = relationship('Entity', foreign_keys=subject_entity_id, lazy='joined')
@@ -184,6 +191,7 @@ class Evidence(Model):
     document_publication_type = Column(String(100))
     document_year_published = Column(Integer)
     evidence_scores = relationship('EvidenceScore', lazy='joined')
+    actual_year = relationship('DocumentYear', foreign_keys=document_id, lazy='joined')
 
     def __init__(self, evidence_id, assertion_id, document_id, sentence, subject_entity_id, object_entity_id,
                  document_zone, document_publication_type, document_year_published):
@@ -302,27 +310,30 @@ class PRtoUniProt(Model):
         self.uniprot = uniprot
 
 
-def init_db(url=None, username=None, password=None):
-    if url is None:
-        if username is None:
-            username = os.getenv('MYSQL_DATABASE_USER', None)
-        if password is None:
-            import urllib.parse
-            password = urllib.parse.quote_plus(os.getenv('MYSQL_DATABASE_PASSWORD', None))
-        url = sqlalchemy.engine.url.URL.create(
-            drivername="mysql",
-            username=username,
+class DocumentYear(Model):
+    __tablename__ = 'document_year'
+    document_id = Column(String(45), ForeignKey('evidence.document_id'), primary_key=True)
+    year = Column(Integer)
+
+    def __init__(self, document_id, year):
+        self.document_id = document_id
+        self.year = year
+
+
+def init_db(username=None, password=None):
+    connector = Connector()
+
+    def get_conn() -> pymysql.connections.Connection:
+        conn: pymysql.connections.Connection = connector.connect(
+            instance_connection_string="translator-text-workflow-dev:us-central1:text-mined-assertions-prod",
+            driver='pymysql',
+            user=username,
             password=password,
-            database='text_mined_assertions',
-            # host='34.69.18.127',
-            # host='34.123.227.58',
-            # port=3306
-            query={
-                # "unix_socket": "/cloudsql/lithe-vault-265816:us-central1:text-mined-assertions-stage"
-                "unix_socket": "/cloudsql/translator-text-workflow-dev:us-central1:text-mined-assertions-prod"
-            }
+            database='text_mined_assertions'
         )
-    engine = create_engine(url, echo=True, future=True)
+        return conn
+
+    engine = create_engine('mysql+pymysql://', creator=get_conn, echo=False)
     global session
     session = sessionmaker()
     session.configure(bind=engine)
