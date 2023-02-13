@@ -1,16 +1,14 @@
-import os
 import json
-import sqlalchemy
 import pymysql.connections
 from google.cloud.sql.connector import Connector
-from sqlalchemy import Column, String, Integer, Boolean, Float, Text, ForeignKey, DateTime, UniqueConstraint, create_engine
+from sqlalchemy import Column, String, Integer, Boolean, Float, Text, ForeignKey, DateTime, TIMESTAMP, UniqueConstraint, create_engine
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from math import fsum
 
 Model = declarative_base(name='Model')
-session = None
+Session = None
 
 
 class Assertion(Model):
@@ -165,8 +163,8 @@ class Evaluation(Model):
     create_datetime = Column(DateTime)
     comments = Column(Text)
 
-    def __init__(self, assertion_id, overall_correct, subject_correct, object_correct, predicate_correct, source_id, create_datetime, comments):
-        self.evidence_id = assertion_id
+    def __init__(self, evidence_id, overall_correct, subject_correct, object_correct, predicate_correct, source_id, create_datetime, comments):
+        self.evidence_id = evidence_id
         self.overall_correct = overall_correct
         self.subject_correct = subject_correct
         self.object_correct = object_correct
@@ -312,12 +310,257 @@ class PRtoUniProt(Model):
 
 class DocumentYear(Model):
     __tablename__ = 'document_year'
-    document_id = Column(String(45), ForeignKey('evidence.document_id'), primary_key=True)
+    document_id = Column(String(45), primary_key=True)
     year = Column(Integer)
 
     def __init__(self, document_id, year):
         self.document_id = document_id
         self.year = year
+
+
+class Semmed(Model):
+    __tablename__ = 'semmed'
+    sid = Column('id', Integer, ForeignKey('tm_semmed.semmed_id'), primary_key=True)
+    pmid = Column(String(45), ForeignKey('document_year.document_id'))
+    sen_start_index = Column(Integer)
+    sentence = Column(String(2000))
+    sen_end_index = Column(Integer)
+    predicate = Column(String(45))
+    subject_cui = Column(String(45), ForeignKey('umls_to_obo.umls'))
+    subject_name = Column(String(250))
+    subject_curie = relationship('UmlsToObo', foreign_keys=subject_cui, lazy='joined')
+    object_cui = Column(String(45), ForeignKey('umls_to_obo.umls'))
+    object_name = Column(String(250))
+    object_curie = relationship('UmlsToObo', foreign_keys=object_cui, lazy='joined')
+    subject_start_index = Column(Integer)
+    subject_end_index = Column(Integer)
+    object_start_index = 0
+    object_end_index = 0
+    predicate_start_index = Column(Integer)
+    predicate_end_index = Column(Integer)
+    actual_year = relationship('DocumentYear', foreign_keys=pmid, lazy='joined')
+
+    def __init__(self, pmid, sen_start_index, sentence, sen_end_index, predicate,
+                 subject_cui, subject_name, object_cui, object_name,
+                 subject_start_index, subject_end_index, predicate_start_index, predicate_end_index):
+        self.pmid = pmid
+        self.sen_start_index = sen_start_index
+        self.sentence = sentence
+        self.sen_end_index = sen_end_index
+        self.predicate = predicate
+        self.subject_cui = subject_cui
+        self.subject_name = subject_name
+        self.object_cui = object_cui
+        self.object_name = object_name
+        self.subject_start_index = subject_start_index
+        self.subject_end_index = subject_end_index
+        self.predicate_start_index = predicate_start_index
+        self.predicate_end_index = predicate_end_index
+
+
+class SemmedFeedback(Model):
+    __tablename__ = 'semmed_feedback'
+    id = Column(Integer, primary_key=True)
+    semmed_id = Column(Integer, ForeignKey('semmed.sid'))
+    overall_correct = Column(Boolean)
+    subject_correct = Column(Boolean)
+    object_correct = Column(Boolean)
+    predicate_correct = Column(Boolean)
+    source_id = Column(Integer)
+    create_datetime = Column(DateTime)
+    comments = Column(Text)
+    response_type = Column(String(50))
+
+    def __init__(self, semmed_id, overall_correct, subject_correct, object_correct, predicate_correct, source_id,
+                 create_datetime, comments, response_type):
+        self.semmed_id = semmed_id
+        self.overall_correct = overall_correct
+        self.subject_correct = subject_correct
+        self.object_correct = object_correct
+        self.predicate_correct = predicate_correct
+        self.source_id = source_id
+        self.create_datetime = create_datetime
+        self.comments = comments
+        self.response_type = response_type
+
+
+class TmSemmed(Model):
+    __tablename__ = 'tm_semmed'
+    tm_id = Column(String(65), ForeignKey(Evidence.evidence_id), primary_key=True)
+    # semmed_id = Column(Integer, ForeignKey(Semmed.sid), primary_key=True)
+    semmed_id = Column(Integer, primary_key=True)
+    # semmed = relationship('Semmed', foreign_keys=semmed_id, lazy='joined')
+
+    def __init__(self, tm_id, semmed_id):
+        self.tm_id = tm_id
+        self.semmed_id = semmed_id
+
+
+class UmlsToObo(Model):
+    __tablename__ = 'umls_to_obo'
+    umls = Column(String(20), ForeignKey('semmed.subject_cui'), ForeignKey('semmed.object_cui'), primary_key=True)
+    obo = Column(String(20), primary_key=True)
+
+    def __init__(self, umls, obo):
+        self.umls = umls
+        self.obo = obo
+
+
+class Citations(Model):
+    __tablename__ = 'SEMMEDDB_CITATIONS'
+    pmid = Column(String(20), primary_key=True)
+    issn = Column(String(10))
+    dp = Column(String(50))
+    edat = Column(String(50))
+    pyear = Column(Integer)
+
+    def __init__(self, pmid, issn, dp, edat, pyear):
+        self.pmid = pmid
+        self.issn = issn
+        self.dp = dp
+        self.edat = edat
+        self.pyear = pyear
+
+
+class Sentence(Model):
+    __tablename__ = 'SEMMEDDB_SENTENCE'
+    sentence_id = Column(Integer, primary_key=True)
+    pmid = Column(String(20), ForeignKey('SEMMEDDB_CITATIONS.pmid'))
+    type = Column(String(2))
+    number = Column(Integer)
+    sent_start_index = Column(Integer)
+    sentence = Column(String(999))
+    sent_end_index = Column(Integer)
+    section_header = Column(String(100))
+    normalized_section_header = Column(String(50))
+
+    def __init__(self, sentence_id, pmid, number, sent_start_index, sentence, sent_end_index, section_header, normalized_section_header):
+        self.sentence_id = sentence_id
+        self.pmid = pmid
+        self.number = number
+        self.sent_start_index = sent_start_index
+        self.sentence = sentence
+        self.sent_end_index = sent_end_index
+        self.section_header = section_header
+        self.normalized_section_header = normalized_section_header
+
+
+class Predication(Model):
+    __tablename__ = 'SEMMEDDB_PREDICATION'
+    bte_id = Column(String(20))
+    predication_id = Column(Integer, ForeignKey('SEMMEDDB_PREDICATION_AUX.predication_id'), primary_key=True)
+    sentence_id = Column(Integer, ForeignKey('SEMMEDDB_SENTENCE.sentence_id'))
+    pmid = Column(String(20), ForeignKey('SEMMEDDB_CITATIONS.pmid'))
+    predicate = Column(String(50))
+    subject_cui = Column(String(255))
+    subject_name = Column(String(999))
+    subject_semtype = Column(String(50))
+    subject_novelty = Column(Boolean)
+    object_cui = Column(String(255))
+    object_name = Column(String(999))
+    object_semtype = Column(String(50))
+    object_novelty = Column(Boolean)
+    subject_prefix = Column(String(20))
+    object_prefix = Column(String(20))
+    sentence = relationship('Sentence', lazy='joined')
+    citation = relationship('Citations', lazy='joined')
+    aux = relationship('PredicationAux', foreign_keys=predication_id, lazy='joined')
+
+    def __init__(self, bte_id, predication_id, sentence_id, pmid, predicate,
+                 subject_cui, subject_name, subject_semtype, subject_novelty,
+                 object_cui, object_name, object_semtype, object_novelty,
+                 subject_prefix, object_prefix):
+        self.bte_id = bte_id
+        self.predication_id = predication_id
+        self.sentence_id = sentence_id
+        self.pmid = pmid
+        self.predicate = predicate
+        self.subject_cui = subject_cui
+        self.subject_name = subject_name
+        self.subject_semtype = subject_semtype
+        self.subject_novelty = subject_novelty
+        self.object_cui = object_cui
+        self.object_name = object_name
+        self.object_semtype = object_semtype
+        self.object_novelty = object_novelty
+        self.subject_prefix = subject_prefix
+        self.object_prefix = object_prefix
+
+
+class SemmedEntity(Model):
+    __tablename__ = 'SEMMEDDB_ENTITY'
+    entity_id = Column(Integer, primary_key=True)
+    sentence_id = Column(Integer, ForeignKey('SEMMEDDB_SENTENCE.sentence_id'))
+    pmid = Column(String(20), ForeignKey('SEMMEDDB_CITATIONS.pmid'))
+    cui = Column(String(255))
+    name = Column(String(999))
+    semtype = Column(String(50))
+    gene_id = Column(String(999))
+    gene_name = Column(String(999))
+    text = Column(String(999))
+    score = Column(Integer)
+    start_index = Column(Integer)
+    end_index = Column(Integer)
+
+    def __init__(self, entity_id, sentence_id, pmid, cui, name, semtype, gene_id, gene_name, text, score, start_index, end_index):
+        self.entity_id = entity_id
+        self.sentence_id = sentence_id
+        self.pmid = pmid
+        self.cui = cui
+        self.name = name
+        self.semtype = semtype
+        self.gene_id = gene_id
+        self.gene_name = gene_name
+        self.text = text
+        self.score = score
+        self.start_index = start_index
+        self.end_index = end_index
+
+
+class PredicationAux(Model):
+    __tablename__ = 'SEMMEDDB_PREDICATION_AUX'
+    predication_aux_id = Column(Integer, primary_key=True)
+    predication_id = Column(Integer, ForeignKey('SEMMEDDB_PREDICATION.predication_id'))
+    subject_text = Column(String(200))
+    subject_dist = Column(Integer)
+    subject_maxdist = Column(Integer)
+    subject_start_index = Column(Integer)
+    subject_end_index = Column(Integer)
+    subject_score = Column(Integer)
+    indicator_type = Column(String(10))
+    predicate_start_index = Column(Integer)
+    predicate_end_index = Column(Integer)
+    object_text = Column(String(200))
+    object_dist = Column(Integer)
+    object_maxdist = Column(Integer)
+    object_start_index = Column(Integer)
+    object_end_index = Column(Integer)
+    object_score = Column(Integer)
+    curr_timestamp = Column(TIMESTAMP)
+
+    def __init__(self, predication_aux_id, predication_id,
+                 subject_text, subject_dist, subject_maxdist, subject_start_index, subject_end_index, subject_score,
+                 indicator_type, predicate_start_index, predicate_end_index,
+                 object_text, object_dist, object_maxdist, object_start_index, object_end_index, object_score,
+                 curr_timestamp):
+        self.predication_aux_id = predication_aux_id
+        self.predication_id = predication_id
+        self.subject_text = subject_text
+        self.subject_dist = subject_dist
+        self.subject_maxdist = subject_maxdist
+        self.subject_start_index = subject_start_index
+        self.subject_end_index = subject_end_index
+        self.subject_score = subject_score
+        self.indicator_type = indicator_type
+        self.predicate_start_index = predicate_start_index
+        self.predicate_end_index = predicate_end_index
+        self.object_text = object_text
+        self.object_dist = object_dist
+        self.object_maxdist = object_maxdist
+        self.object_start_index = object_start_index
+        self.object_end_index = object_end_index
+        self.object_score = object_score
+        self.curr_timestamp = curr_timestamp
 
 
 def init_db(username=None, password=None):
@@ -334,6 +577,5 @@ def init_db(username=None, password=None):
         return conn
 
     engine = create_engine('mysql+pymysql://', creator=get_conn, echo=False)
-    global session
-    session = sessionmaker()
-    session.configure(bind=engine)
+    global Session
+    Session = sessionmaker(bind=engine)

@@ -1,17 +1,25 @@
 from flask import Flask, render_template, request
+from flask_caching import Cache
 from sqlalchemy import select, text, insert
+from sqlalchemy.orm.scoping import scoped_session
 import os
 import models
 import services
 import json
 
-app = Flask(__name__)
-
+config = {
+    "DEBUG": True,
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 300
+}
+app = Flask(__name__, static_folder='public')
+app.config.from_mapping(config)
+cache = Cache(app)
 
 # Start with a hard-coded list of predicates to avoid having to query the evidence_score table for the list.
 predicates = ['biolink:entity_negatively_regulates_entity', 'biolink:entity_positively_regulates_entity',
               'biolink:gain_of_function_contributes_to', 'biolink:loss_of_function_contributes_to', 'biolink:treats',
-              'biolink:contributes_to', 'false']
+              'biolink:contributes_to']
 
 
 @app.route('/')
@@ -33,7 +41,9 @@ def translator_index():
 
 @app.route('/assertion/<aid>', strict_slashes=False)
 @app.route('/assertions/<aid>', strict_slashes=False)
+@cache.cached(timeout=30)
 def assertion_lookup(aid):
+    s = Session()
     assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
     if assertion_query_by_id.count() == 0:
         return "No results found"
@@ -41,15 +51,38 @@ def assertion_lookup(aid):
 
 
 @app.route('/evidence/<evidence_id>', strict_slashes=False)
+@cache.cached(timeout=30)
 def evidence_lookup(evidence_id):
+    s = Session()
     evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
     if evidence_query_by_id.count() == 0:
         return "No results found"
     return render_template("evidence.html", title="Evidence Display", evidence=evidence_query_by_id.one())
 
 
+@app.route('/semmed/<semmed_id>', strict_slashes=False)
+@cache.cached(timeout=30)
+def semmed_lookup(semmed_id):
+    s = Session()
+    semmmed_query_by_id = s.query(models.Semmed).filter(models.Semmed.sid == semmed_id)
+    if semmmed_query_by_id.count() == 0:
+        return "No results found"
+    return render_template("semmed.html", title="SemMedDB Display", record=semmmed_query_by_id.one())
+
+
+@app.route('/semmed/predication/<pred_id>', strict_slashes=False)
+@cache.cached(timeout=15)
+def predication_lookup(pred_id):
+    s = Session()
+    pred_query = s.query(models.Predication).filter(models.Predication.predication_id == pred_id)
+    if pred_query.count() == 0:
+        return "No results found"
+    return render_template("semmed.html", title="SemMedDB Display", record=pred_query.one())
+
+
 @app.route('/query/', methods=['POST'], strict_slashes=False)
 def assertion_query():
+    s = Session()
     if request.is_json:
         request_dict = json.loads(request.data)
         subject_curie = request_dict['subject']
@@ -123,6 +156,7 @@ def assertion_query():
 
 @app.route('/evaluations/', methods=['POST'], strict_slashes=False)
 def add_evaluation():
+    s = Session()
     if not request.is_json:
         return 'nope', 400
     request_dict = json.loads(request.data)
@@ -140,20 +174,58 @@ def add_evaluation():
     return {}, 201
 
 
+@app.route('/api/semmed/feedback/', methods=['POST'], strict_slashes=False)
+def add_semmed_feedback():
+    s = Session()
+    if not request.is_json:
+        return 'nope', 400
+    request_dict = json.loads(request.data)
+    insert_statement = insert(models.SemmedFeedback).values(
+        semmed_id=request_dict['predication_id'],
+        overall_correct=request_dict['overall_correct'],
+        subject_correct=request_dict['subject_correct'],
+        object_correct=request_dict['object_correct'],
+        predicate_correct=request_dict['predicate_correct'],
+        response_type=request_dict['type'],
+        comments=request_dict['comments'] if 'comments' in request_dict else None,
+        source_id=TMUI_ID
+    )
+    s.execute(insert_statement)
+    s.commit()
+    return {}, 201
+
+
 @app.route('/api/curies/subject/', strict_slashes=False)
+@cache.cached(timeout=600)
 def get_available_subject_curies():
+    s = Session()
     query = select(text('DISTINCT subject_curie FROM assertion'))
     results = [curie for curie, in s.execute(query)]
-    print(f"Subject count: {len(results)}")
-    return json.dumps(results)
+    namespaces = set([curie.split(':')[0] for curie in results])
+    results.sort()
+    return json.dumps({
+        'curies': results,
+        'namespaces': list(namespaces)
+    })
 
 
 @app.route('/api/curies/object/', strict_slashes=False)
+@cache.cached(timeout=600)
 def get_available_object_curies():
+    s = Session()
     query = select(text('DISTINCT object_curie FROM assertion'))
     results = [curie for curie, in s.execute(query)]
-    print(f"Object count: {len(results)}")
-    return json.dumps(results)
+    namespaces = set([curie.split(':')[0] for curie in results])
+    results.sort()
+    return json.dumps({
+        'curies': results,
+        'namespaces': list(namespaces)
+    })
+
+
+@app.route('/loaderio-e04f94bd56a03c22415e96cd33e5ee90/')
+def verification():
+    return 'loaderio-e04f94bd56a03c22415e96cd33e5ee90', 200
 
 
 def get_edge_list(assertions, use_uniprot=False):
@@ -187,10 +259,12 @@ def get_edge_list(assertions, use_uniprot=False):
 
 
 def get_predicates() -> list:
+    s = Session()
     return [predicate for predicate, in s.execute(select(text('DISTINCT predicate_curie FROM evidence_score')))]
 
 
 def get_options() -> (list, list):
+    s = Session()
     subject_curies = [sub[0] for sub in s.query(models.Assertion.subject_curie).distinct()]
     object_curies = [obj[0] for obj in s.query(models.Assertion.object_curie).distinct()]
     list_to_normalize = []
@@ -219,6 +293,7 @@ def get_options() -> (list, list):
 
 
 def get_translated_options() -> (list, list):
+    s = Session()
     subject_subquery = s.query(models.Assertion.subject_curie.distinct())
     object_subquery = s.query(models.Assertion.object_curie.distinct())
     subject_curies = [sub[0] for sub in s.query(models.PRtoUniProt.uniprot.distinct()).filter(models.PRtoUniProt.pr.in_(subject_subquery))]
@@ -246,6 +321,11 @@ def get_translated_options() -> (list, list):
     return subjects, objects
 
 
+@app.teardown_appcontext
+def shutdown_session(response_or_exc):
+    Session.remove()
+
+
 username = os.getenv('MYSQL_DATABASE_USER', None)
 secret_password = os.getenv('MYSQL_DATABASE_PASSWORD', None)
 EDGE_LIMIT = int(os.getenv('EDGE_LIMIT', '500'))
@@ -253,7 +333,7 @@ TMUI_ID = 0
 assert username
 assert secret_password
 models.init_db(username=username, password=secret_password)
-s = models.session()
+Session = scoped_session(models.Session)
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

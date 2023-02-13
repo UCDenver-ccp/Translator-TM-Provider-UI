@@ -21,7 +21,8 @@
 				<div class="row">
 					<div class="col-md-2 col-sm-12">
 						<label for="subjectSelect" class="form-label">Subject</label>
-						<input id="subjectSelect" class="form-control" type="text" placeholder="Any">
+						<input id="subjectSelect" class="form-control" type="text" list="subject-options">
+						<datalist id="subject-options"></datalist>
 					</div>
 					<div class="col-md-5 col-sm-12">
 						<label for="predicateSelect" class="form-label">Predicate</label>
@@ -34,7 +35,8 @@
 					</div>
 					<div class="col-md-2 col-sm-12">
 						<label for="objectSelect" class="form-label">Object</label>
-						<input id="objectSelect" class="form-control" type="text" placeholder="Any">
+						<input id="objectSelect" class="form-control" type="text" list="object-options">
+						<datalist id="object-options"></datalist>
 					</div>
 					<div class="col-md-2 position-relative">
 						<button class="btn btn-primary position-absolute bottom-0" type="button" id="executeQueryButton">Execute Query</button>
@@ -215,12 +217,11 @@
 					method: "GET",
 					url: "/api/curies/subject",
 				}).done(function(results) {
-					subject_curies = JSON.parse(results);
-					$('#subjectSelect').autocomplete({
-						minLength: 2,
-						delay: 500,
-						source: subject_curies
-					})
+					subjects = JSON.parse(results);
+					optionsList = [];
+					dataList = document.getElementById('subject-options');
+					subjects.curies.forEach(curie => dataList.appendChild(new Option(curie, curie)))
+					$('#subjectSelect').attr('placeholder', subjects.namespaces.join(', '))
 				});
 			}
 
@@ -229,12 +230,11 @@
 					method: "GET",
 					url: "/api/curies/object",
 				}).done(function(results) {
-					object_curies = JSON.parse(results);
-					$('#objectSelect').autocomplete({
-						minLength: 2,
-						delay: 500,
-						source: object_curies
-					})
+					objects = JSON.parse(results);
+					optionsList = [];
+					dataList = document.getElementById('object-options');
+					objects.curies.forEach(curie => dataList.appendChild(new Option(curie, curie)))
+					$('#objectSelect').attr('placeholder', objects.namespaces.join(', '))
 				});
 			}
 

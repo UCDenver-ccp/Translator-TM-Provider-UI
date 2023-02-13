@@ -8,3 +8,4 @@ SQLAlchemy
 PyMySQL
 cloud-sql-python-connector[pymysql]
 gunicorn
+Flask-Caching
