@@ -10,7 +10,7 @@ from math import fsum
 Model = declarative_base(name='Model')
 Session = None
 
-
+# region Text Mined Assertion Models
 class Assertion(Model):
     __tablename__ = 'assertion'
     assertion_id = Column(String(65), primary_key=True)
@@ -318,6 +318,25 @@ class DocumentYear(Model):
         self.year = year
 
 
+class EvidenceFeedback(Model):
+    __tablename__ = 'assertion_evidence_feedback'
+    id = Column(Integer, primary_key=True)
+    evidence_id = Column(Integer)
+    source_id = Column(Integer)
+    comments = Column(Text)
+    create_datetime = Column(TIMESTAMP)
+
+
+class EvidenceFeedbackAnswer(Model):
+    __tablename__ = 'evidence_feedback_answer'
+    id = Column(Integer, primary_key=True)
+    feedback_id = Column(Integer)
+    prompt_text = Column(String(255))
+    response = Column(Boolean)
+
+# endregion
+
+# region TM to SemMedDB Models
 class Semmed(Model):
     __tablename__ = 'semmed'
     sid = Column('id', Integer, ForeignKey('tm_semmed.semmed_id'), primary_key=True)
@@ -405,7 +424,9 @@ class UmlsToObo(Model):
         self.umls = umls
         self.obo = obo
 
+# endregion
 
+# region SemMedDB Models
 class Citations(Model):
     __tablename__ = 'SEMMEDDB_CITATIONS'
     pmid = Column(String(20), primary_key=True)
@@ -562,6 +583,25 @@ class PredicationAux(Model):
         self.object_score = object_score
         self.curr_timestamp = curr_timestamp
 
+
+class PredicationFeedback(Model):
+    __tablename__ = 'semmeddb_predication_feedback'
+    id = Column(Integer, primary_key=True)
+    predication_id = Column(Integer)
+    source_id = Column(Integer)
+    comments = Column(Text)
+    create_timestamp = Column(TIMESTAMP)
+
+
+class PredicationFeedbackAnswer(Model):
+    __tablename__ = 'semmeddb_feedback_answer'
+    id = Column(Integer, primary_key=True)
+    feedback_id = Column(Integer)
+    prompt_text = Column(String(255))
+    response = Column(Boolean)
+
+
+# endregion
 
 def init_db(username=None, password=None):
     connector = Connector()

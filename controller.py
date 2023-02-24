@@ -174,23 +174,58 @@ def add_evaluation():
     return {}, 201
 
 
+@app.route('/api/evidence/feedback/', methods=['POST'], strict_slashes=False)
+def add_evidence_feedback():
+    s = Session()
+    if not request.is_json:
+        return 'nope', 400
+    request_dict = json.loads(request.data)
+    if 'evidence_id' not in request_dict:
+        return 'no evidence id', 400
+    feedback_insert = insert(models.EvidenceFeedback).values(
+        evidence_id=request_dict['evidence_id'],
+        source_id = TMUI_ID,
+        comments=request_dict['comments'] if 'comments' in request_dict else None
+    )
+    result = s.execute(feedback_insert)
+    vals = []
+    for q, a in request_dict.items():
+        if q == 'evidence_id' or q == 'comments':
+            continue
+        vals.append({
+            'feedback_id': result.inserted_primary_key[0],
+            'prompt_text': q,
+            'response': a
+        })
+    s.execute(insert(models.EvidenceFeedbackAnswer), vals,)
+    s.commit()
+    return {}, 201
+
+
 @app.route('/api/semmed/feedback/', methods=['POST'], strict_slashes=False)
 def add_semmed_feedback():
     s = Session()
     if not request.is_json:
         return 'nope', 400
     request_dict = json.loads(request.data)
-    insert_statement = insert(models.SemmedFeedback).values(
-        semmed_id=request_dict['predication_id'],
-        overall_correct=request_dict['overall_correct'],
-        subject_correct=request_dict['subject_correct'],
-        object_correct=request_dict['object_correct'],
-        predicate_correct=request_dict['predicate_correct'],
-        response_type=request_dict['type'],
-        comments=request_dict['comments'] if 'comments' in request_dict else None,
-        source_id=TMUI_ID
+    if 'predication_id' not in request_dict:
+        return 'no predication id', 400
+    feedback_insert = insert(models.PredicationFeedback).values(
+        predication_id=request_dict['predication_id'],
+        source_id = TMUI_ID,
+        comments=request_dict['comments'] if 'comments' in request_dict else None
     )
-    s.execute(insert_statement)
+    result = s.execute(feedback_insert)
+    vals = []
+    for q, a in request_dict.items():
+        if q == 'predication_id' or q == 'comments':
+            continue
+        vals.append({
+            'feedback_id': result.inserted_primary_key[0],
+            'prompt_text': q,
+            'response': a
+        })
+    s.execute(insert(models.PredicationFeedbackAnswer), vals,)
     s.commit()
     return {}, 201
 

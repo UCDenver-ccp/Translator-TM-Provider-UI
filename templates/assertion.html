@@ -10,6 +10,11 @@
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
 	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+	<style>
+		li::marker {
+			content: "";
+		}
+	</style>
 </head>
 <body>
 	<main role="main" class="container-fluid">
@@ -76,7 +81,7 @@
 			{% endfor %}
 		</div>
 		<div class="modal" id="feedbackModal" tabindex="-1">
-			<div class="modal-dialog">
+			<div class="modal-dialog modal-lg">
 				<div class="modal-content">
 					<div class="modal-header">
 						<h5 class="modal-title">Feedback</h5>
@@ -87,39 +92,76 @@
 						<p id="feedbackSentence" data-evidence-id></p>
 						Assertion:
 						<p>
-							<span id="feedbackSubject"></span> |
-							<span id="feedbackPredicate"></span> |
-							<span id="feedbackObject"></span>
+							<span id="feedbackSubject" class="badge bg-primary"></span>
+							<span id="feedbackPredicate" class="badge bg-secondary"></span>
+							<span id="feedbackObject" class="badge bg-info"></span>
 						</p>
-						<div class="form-check">
-						  <input class="form-check-input" type="checkbox" value="" id="overallCheck">
-						  <label class="form-check-label" for="overallCheck">
-							Assertion does not match sentence
-						  </label>
+						<div class="p-2">
+							<h5>Correct</h5>
+							<div class="form-check">
+								<input class="form-check-input feedback" type="checkbox" value="Assertion Correct" id="overallCheck">
+								<label class="form-check-label" for="overallCheck" data-bs-toggle="tooltip" title="Use this option to indicate that the text-mined assertion accurately represents the relationship asserted by the sentence between the subject and object entity.">
+									The text supports this assertion
+								</label>
+							</div>
 						</div>
-						<div class="form-check">
-						  <input class="form-check-input" type="checkbox" value="" id="subjectCheck">
-						  <label class="form-check-label" for="subjectCheck">
-							  Subject <span id="feedbackSubjectCurie"></span> is incorrect
-						  </label>
+						<div class="p-2">
+							<h5>Incorrect</h5>
+							<div class="form-check">
+								<input class="form-check-input feedback" type="checkbox" value="Assertion Incorrect" id="noAssertion">
+								<label class="form-check-label" for="noAssertion" data-bs-toggle="tooltip" title="Use this option to indicate that the text does not support the asserted relation between the subject and object entity. Select sub-options as appropriate.">
+									The text does not support this assertion
+								</label>
+							</div>
+							<ul><li class="unbulleted">
+								<div class="form-check">
+									<input class="form-check-input feedback incorrect" type="checkbox" value="Predicate Incorrect" id="badPredicate">
+									<label class="form-check-label" for="badPredicate" data-bs-toggle="tooltip" title="Use this option to indicate that the text does not support the predicate used in the assertion, e.g., if the assertion uses biolink:treats when the sentence instead asserts a biolink:causes relationship.">
+										The text does not support the predicate of the assertion (<span class="badge bg-secondary predicate-curie"></span>)
+									</label>
+								</div>
+								<ul><li class="unbulleted">
+									<div class="form-check">
+										<input class="form-check-input feedback incorrect" type="checkbox" value="Predicate Too Specific" id="tooSpecific">
+										<label class="form-check-label" for="tooSpecific" data-bs-toggle="tooltip" title="Use this option to indicate that the text does not support the predicate used in the assertion because the predicate is too specific, e.g., the assertion uses biolink:causes when it should instead use biolink:contributes_to.">
+											The predicate of the assertion (<span class="badge bg-secondary predicate-curie"></span>) is too specific
+										</label>
+									</div>
+								</li></ul>
+								<div class="form-check">
+									<input class="form-check-input feedback incorrect" type="checkbox" value="Incorrect Subject" id="badSubject">
+									<label class="form-check-label" for="badSubject" data-bs-toggle="tooltip" title="Use this option to indicate that a concept recognition error has occurred for the subject entity.">
+										The annotated subject text does not refer to the subject class (<span class="badge bg-primary subject-curie"></span>) of the assertion
+									</label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input feedback incorrect" type="checkbox" value="Incorrect Object" id="badObject">
+									<label class="form-check-label" for="badObject" data-bs-toggle="tooltip" title="Use this option to indicate that a concept recognition error has occurred for the object entity.">
+										The annotated object text does not refer to the object class (<span class="badge bg-info object-curie"></span>) of the assertion
+									</label>
+								</div>
+							</li></ul>
 						</div>
-						<div class="form-check">
-						  <input class="form-check-input" type="checkbox" value="" id="predicateCheck">
-						  <label class="form-check-label" for="predicateCheck">
-							  Predicate <span id="feedbackPredicateCheck"></span> is incorrect
-						  </label>
-						</div>
-						<div class="form-check">
-						  <input class="form-check-input" type="checkbox" value="" id="objectCheck">
-						  <label class="form-check-label" for="objectCheck">
-							  Object <span id="feedbackObjectCurie"></span> is incorrect
-						  </label>
-						</div>
-						<div class="form-check">
-						  <input class="form-check-input" type="checkbox" value="" id="overallOK">
-						  <label class="form-check-label" for="overallOK">
-							Assertion is correct
-						  </label>
+						<div class="p-2">
+							<h5>This assertion could be improved</h5>
+							<div class="form-check">
+								<input class="form-check-input feedback" type="checkbox" value="Subject Too General" id="subjectGeneral">
+								<label class="form-check-label" for="subjectGeneral" data-bs-toggle="tooltip" title="Use this option to indicate that although the text supports the assertion, the assertion could be improved by using a more specific subject class and/or altering the highlighted span for the subject entity. If this is the case, please include an ontology identifier referencing a more appropriate class and include the text of any altered highlighted span.">
+									This assertion could be improved by using a more specific subject class/span (<span class="badge bg-primary subject-curie"></span>) (please suggest a more specific subject in the comment box below)
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input feedback" type="checkbox" value="Object Too General" id="objectGeneral">
+								<label class="form-check-label" for="objectGeneral" data-bs-toggle="tooltip" title="Use this option to indicate that although the text supports the assertion, the assertion could be improved by using a more specific object class and/or altering the highlighted span for the object entity. If this is the case, please include an ontology identifier referencing a more appropriate class and include the text of any altered highlighted span.">
+									This assertion could be improved by using a more specific object class/span (<span class="badge bg-info object-curie"></span>) (please suggest a more specific object in the comment box below)
+								</label>
+							</div>
+							<div class="form-check">
+								<input class="form-check-input feedback" type="checkbox" value="Predicate Too General" id="predicateGeneral">
+								<label class="form-check-label" for="predicateGeneral" data-bs-toggle="tooltip" title="Use this option to indicate that although the text supports the assertion, the predicate used is too general. If this is the case, please suggest an alternative predicate in the comment box.">
+									The text supports this assertion, but the predicate (<span class="badge bg-secondary predicate-curie"></span>) is too general (please suggest a more specific predicate in the comment box below)
+								</label>
+							</div>
 						</div>
 						<div class="mb-3">
 							<label for="comments" class="form-label">Additional Comments (optional):</label>
@@ -167,22 +209,27 @@
 				];
 				let sentenceHTML = spliceStrings(sentence, spliceList);
 				sentenceElement.innerHTML = sentenceHTML;
+				$('#' + id + '>span[data-bs-toggle="tooltip"]').tooltip();
 			}
 
 			function sendFeedback() {
+				if (!(document.getElementById('overallCheck').checked || document.getElementById('noAssertion').checked)) {
+					alert('Please indicate whether the assertion is correct or incorrect');
+					return;
+				}
 				feedbackObject = {
 					'evidence_id' : document.getElementById('feedbackSentence').dataset.evidenceId,
-					'overall_correct' : !document.getElementById('overallCheck').checked,
-					'subject_correct' : !document.getElementById('subjectCheck').checked,
-					'object_correct' : !document.getElementById('objectCheck').checked,
-					'predicate_correct' : !document.getElementById('predicateCheck').checked
+				}
+				checks = document.getElementsByClassName('feedback');
+				for (const check of checks) {
+					feedbackObject[check.value] = check.checked;
 				}
 				commentText = document.getElementById('comments').value
 				if(commentText.length > 0) {
 					feedbackObject['comments'] = commentText;
 				}
 				$.ajax({
-					url : '/evaluations',
+					url : '/api/evidence/feedback',
 					type : 'POST',
 					dataType: 'json',
 					contentType: 'application/json;charset=utf-8',
@@ -200,11 +247,6 @@
 				});
 			}
 
-			// Highlight the subject and object of every evidence sentence.
-			Array.prototype.forEach.call(document.getElementsByClassName('evidence_sentence'), function(element) {
-				highlightText(element.id);
-			});
-
 			// Set up the modal to populate with the dataset of the button used to call it.
 			const feedbackModal = document.getElementById('feedbackModal');
 			feedbackModal.addEventListener('show.bs.modal', event => {
@@ -214,26 +256,52 @@
 				document.getElementById('feedbackSubject').innerHTML = button.dataset.subjectText;
 				document.getElementById('feedbackObject').innerHTML = button.dataset.objectText;
 				document.getElementById('feedbackPredicate').innerHTML = button.dataset.predicate.replace('biolink:', '');
-				document.getElementById('feedbackPredicateCheck').innerHTML = '(' + button.dataset.predicate.replace('biolink:', '') + ')';
-				document.getElementById('feedbackSubjectCurie').innerHTML = '(' + button.dataset.subjectCurie + ')';
-				document.getElementById('feedbackObjectCurie').innerHTML = '(' + button.dataset.objectCurie + ')';
+				document.getElementById('comments').value = '';
+				$('.subject-curie').text(button.dataset.subjectCurie);
+				$('.object-curie').text(button.dataset.objectCurie);
+				$('.predicate-curie').text(button.dataset.predicate);
 				$('input[type=checkbox]').prop('checked', false);
+				$('#feedbackModal').find('[data-bs-toggle="tooltip"]').tooltip()
 			});
 
-			var checkboxes = document.querySelectorAll("input[type=checkbox]");
+			correctCheckbox = document.getElementById('overallCheck')
+			correctCheckbox.addEventListener('change', function() {
+				if (correctCheckbox.checked) {
+					$('#noAssertion').prop('checked', false);
+					$('.incorrect').prop('checked', false);
+				}
+			});
+			incorrectCheckbox = document.getElementById('noAssertion')
+			incorrectCheckbox.addEventListener('change', function() {
+				if (incorrectCheckbox.checked) {
+					$('#overallCheck').prop('checked', false);
+				} else {
+					$('.incorrect').prop('checked', false);
+				}
+			});
+			var checkboxes = document.querySelectorAll(".incorrect");
 			checkboxes.forEach(function(checkbox) {
 				checkbox.addEventListener('change', function() {
 					if (checkbox.checked) {
-						if (checkbox.id == 'overallOK') {
-							$('input[type=checkbox]').not('#overallOK').prop('checked', false);
-						} else {
-							$('#overallOK').prop('checked', false);
+						$('#noAssertion').prop('checked', true);
+						$('#overallCheck').prop('checked', false);
+						if (checkbox.id == 'tooSpecific') {
+							$('#badPredicate').prop('checked', true);
+						}
+					} else {
+						if (checkbox.id == 'badPredicate') {
+							$('#tooSpecific').prop('checked', false);
 						}
 					}
 				});
 			});
 
 			document.getElementById('submitButton').addEventListener('click', sendFeedback);
+
+			// Highlight the subject and object of every evidence sentence. This should be last to not block anything.
+			Array.prototype.forEach.call(document.getElementsByClassName('evidence_sentence'), function(element) {
+				highlightText(element.id);
+			});
 		});
 	</script>
 </body>
