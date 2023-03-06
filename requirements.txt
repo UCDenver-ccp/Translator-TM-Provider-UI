@@ -1,0 +1,11 @@
+google==3.0.0
+google-api-core==2.0.1
+google-auth==2.1.0
+google-cloud==0.34.0
+google-cloud-core==2.0.0
+Flask
+SQLAlchemy
+PyMySQL
+cloud-sql-python-connector[pymysql]
+gunicorn
+Flask-Caching
