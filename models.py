@@ -37,14 +37,14 @@ class Assertion(Model):
 
     def get_subject_link(self) -> str:
         if self.subject_uniprot:
-            return f'https://www.uniprot.org/uniprotkb/{self.subject_uniprot.replace("UniProtKB:", "")}/entry'
+            return f'https://www.uniprot.org/uniprotkb/{self.subject_uniprot.uniprot.replace("UniProtKB:", "")}/entry'
         if self.subject_curie.startswith('DRUGBANK'):
             return f'https://go.drugbank.com/drugs/{self.subject_curie.replace("DRUGBANK:", "")}'
         return f'http://purl.obolibrary.org/obo/{self.subject_curie.replace(":", "_")}'
 
     def get_object_link(self) -> str:
         if self.object_uniprot:
-            return f'https://www.uniprot.org/uniprotkb/{self.object_uniprot.replace("UniProtKB:", "")}/entry'
+            return f'https://www.uniprot.org/uniprotkb/{self.object_uniprot.uniprot.replace("UniProtKB:", "")}/entry'
         if self.object_curie.startswith('DRUGBANK'):
             return f'https://go.drugbank.com/drugs/{self.object_curie.replace("DRUGBANK:", "")}'
         return f'http://purl.obolibrary.org/obo/{self.object_curie.replace(":", "_")}'
