@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request
+from flask_cors import CORS
 from flask_caching import Cache
 from sqlalchemy import select, text, insert
 from sqlalchemy.orm.scoping import scoped_session
@@ -6,6 +7,7 @@ import os
 import models
 import services
 import json
+import jsonpickle
 
 config = {
     "DEBUG": True,
@@ -15,6 +17,7 @@ config = {
 app = Flask(__name__, static_folder='public')
 app.config.from_mapping(config)
 cache = Cache(app)
+CORS(app)
 
 # Start with a hard-coded list of predicates to avoid having to query the evidence_score table for the list.
 predicates = ['biolink:entity_negatively_regulates_entity', 'biolink:entity_positively_regulates_entity',
@@ -42,7 +45,7 @@ def translator_index():
 @app.route('/assertion/<aid>', strict_slashes=False)
 @app.route('/assertions/<aid>', strict_slashes=False)
 @cache.cached(timeout=30)
-def assertion_lookup(aid):
+def assertion_page(aid):
     s = Session()
     assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
     if assertion_query_by_id.count() == 0:
@@ -50,14 +53,41 @@ def assertion_lookup(aid):
     return render_template("assertion.html", title="Assertion Display", assertion=assertion_query_by_id.one())
 
 
+@app.route('/api/assertion/<aid>', strict_slashes=False)
+@app.route('/api/assertions/<aid>', strict_slashes=False)
+@cache.cached(timeout=30)
+def assertion_lookup(aid):
+    s = Session()
+    assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
+    if assertion_query_by_id.count() == 0:
+        return "{}"
+    one = assertion_query_by_id.one()
+    one_data = jsonpickle.encode(one, unpicklable=False)
+    return json.dumps(one_data)
+
+
 @app.route('/evidence/<evidence_id>', strict_slashes=False)
 @cache.cached(timeout=30)
-def evidence_lookup(evidence_id):
+def evidence_page(evidence_id):
     s = Session()
     evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
     if evidence_query_by_id.count() == 0:
         return "No results found"
     return render_template("evidence.html", title="Evidence Display", evidence=evidence_query_by_id.one())
+
+
+@app.route('/api/evidence/<evidence_id>', strict_slashes=False)
+@cache.cached(timeout=30)
+def evidence_lookup(evidence_id):
+    print(evidence_id)
+    s = Session()
+    evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
+    if evidence_query_by_id.count() == 0:
+        return {}
+    one = evidence_query_by_id.one()
+    one.document_year_published = one.get_year()
+    one_data = jsonpickle.encode(one, unpicklable=False)
+    return one_data
 
 
 @app.route('/semmed/<semmed_id>', strict_slashes=False)
