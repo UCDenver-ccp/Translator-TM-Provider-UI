@@ -27,6 +27,34 @@ class Assertion(Model):
         self.object_curie = object_curie
         self.association_curie = association
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def get_subject_link(self) -> str:
+        if self.subject_uniprot:
+            return f'https://www.uniprot.org/uniprotkb/{self.subject_uniprot.replace("UniProtKB:", "")}/entry'
+        if self.subject_curie.startswith('DRUGBANK'):
+            return f'https://go.drugbank.com/drugs/{self.subject_curie.replace("DRUGBANK:", "")}'
+        return f'http://purl.obolibrary.org/obo/{self.subject_curie.replace(":", "_")}'
+
+    def get_object_link(self) -> str:
+        if self.object_uniprot:
+            return f'https://www.uniprot.org/uniprotkb/{self.object_uniprot.replace("UniProtKB:", "")}/entry'
+        if self.object_curie.startswith('DRUGBANK'):
+            return f'https://go.drugbank.com/drugs/{self.object_curie.replace("DRUGBANK:", "")}'
+        return f'http://purl.obolibrary.org/obo/{self.object_curie.replace(":", "_")}'
+
+    def get_subject_curie(self) -> str:
+        return self.subject_uniprot.uniprot if self.subject_uniprot else self.subject_curie
+
+    def get_object_curie(self) -> str:
+        return self.object_uniprot.uniprot if self.object_uniprot else self.object_curie
+
     def get_predicate_scores(self) -> dict:
         predicate_scores_dict = {}
         for predicate in self.get_predicates():
@@ -150,6 +178,14 @@ class Entity(Model):
         self.span = span
         self.covered_text = covered_text
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class Evaluation(Model):
     __tablename__ = 'evaluation'
@@ -173,12 +209,20 @@ class Evaluation(Model):
         self.create_datetime = create_datetime
         self.comments = comments
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class Evidence(Model):
     __tablename__ = 'evidence'
     evidence_id = Column(String(65), primary_key=True)
     assertion_id = Column(String(65), ForeignKey('assertion.assertion_id'))
-    assertion = relationship('Assertion', back_populates='evidence_list')
+    assertion = relationship('Assertion', back_populates='evidence_list', lazy='joined')
     document_id = Column(String(45), ForeignKey('document_year.document_id'))
     sentence = Column(String(2000))
     subject_entity_id = Column(String(65), ForeignKey('entity.entity_id'))
@@ -202,6 +246,17 @@ class Evidence(Model):
         self.document_zone = document_zone
         self.document_publication_type = document_publication_type
         self.document_year_published = document_year_published
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def get_year(self) -> int:
+        return self.actual_year.year if self.actual_year else self.document_year_published
 
     def get_top_predicate(self) -> str:
         self.evidence_scores.sort(key=lambda ev_score: ev_score.score, reverse=True)
@@ -296,6 +351,14 @@ class EvidenceScore(Model):
         self.predicate_curie = predicate_curie
         self.score = score
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class PRtoUniProt(Model):
     __tablename__ = 'pr_to_uniprot'
@@ -307,6 +370,14 @@ class PRtoUniProt(Model):
         self.pr = pr
         self.uniprot = uniprot
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class DocumentYear(Model):
     __tablename__ = 'document_year'
@@ -317,6 +388,14 @@ class DocumentYear(Model):
         self.document_id = document_id
         self.year = year
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class EvidenceFeedback(Model):
     __tablename__ = 'assertion_evidence_feedback'
@@ -326,6 +405,14 @@ class EvidenceFeedback(Model):
     comments = Column(Text)
     create_datetime = Column(TIMESTAMP)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
 
 class EvidenceFeedbackAnswer(Model):
     __tablename__ = 'evidence_feedback_answer'
@@ -333,6 +420,14 @@ class EvidenceFeedbackAnswer(Model):
     feedback_id = Column(Integer)
     prompt_text = Column(String(255))
     response = Column(Boolean)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['_sa_instance_state']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
 # endregion
 
