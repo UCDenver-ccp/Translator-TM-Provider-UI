@@ -39,7 +39,7 @@
 			</span>
 		</h4>
 		<div class="accordion" id="evidenceAccordion">
-			{% for ev in assertion.get_current_evidences() %}
+			{% for ev in assertion.get_current_evidences()[:500] %}
 				{% if ev.get_top_predicate() != 'false' %}
 			<div class="accordion-item">
 				<h2 class="accordion-header" id="header_{{ ev.evidence_id }}">
@@ -58,7 +58,7 @@
 				</h2>
 				<div id="collapse_{{ ev.evidence_id }}" class="accordion-collapse collapse" aria-labelledby="header_{{ ev.evidence_id }}" data-bs-parent="evidenceAccordion">
 						<dl class="row">
-							<dt class="col-sm-2">Publication:</dt> <dd class="col-sm-10"><a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/{{ ev.document_id }}">{{ ev.document_id }}<small><i class="bi bi-box-arrow-up-right"></i></small></a></dd>
+							<dt class="col-sm-2">Publication:</dt> <dd class="col-sm-10"><a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/{{ ev.document_id.replace('PMID:', '') }}">{{ ev.document_id }}<small><i class="bi bi-box-arrow-up-right"></i></small></a></dd>
 							<dt class="col-sm-2">Publication Year:</dt> <dd class="col-sm-10">{{ ev.actual_year.year }}</dd>
 							<dt class="col-sm-2">Document Zone:</dt> <dd class="col-sm-10">{{ ev.document_zone }}</dd>
 							<dt class="col-sm-2">Predicate:</dt> <dd class="col-sm-10">{{ ev.get_top_predicate() }}</dd>

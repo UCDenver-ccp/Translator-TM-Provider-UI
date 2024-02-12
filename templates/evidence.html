@@ -37,26 +37,26 @@
 						{{ evidence.sentence }}
 					</span>
 					<dl class="row">
-						<dt class="col-sm-2">Publication:</dt><dd class="col-sm-10"><a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/{{ evidence.document_id }}">{{ evidence.document_id }}<small><i class="bi bi-box-arrow-up-right"></i></small></a></dd>
+						<dt class="col-sm-2">Publication:</dt><dd class="col-sm-10"><a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/{{ evidence.document_id.replace('PMID:', '') }}">{{ evidence.document_id }}<small><i class="bi bi-box-arrow-up-right"></i></small></a></dd>
 						<dt class="col-sm-2">Publication Year:</dt><dd class="col-sm-10">{{ evidence.actual_year.year }}</dd>
 						<dt class="col-sm-2">Document Zone:</dt><dd class="col-sm-10">{{ evidence.document_zone }}</dd>
 						<dt class="col-sm-2">Confidence:</dt><dd class="col-sm-10">{{ evidence.get_score() }}</dd>
 						<dt class="col-sm-2">Assertion:</dt><dd class="col-sm-10">
-							<span class="badge bg-primary">
+							<a class="badge bg-primary" href="{{ evidence.assertion.get_subject_link() }}" target="_blank">
 								{% if evidence.assertion.subject_uniprot %}
 									{{ evidence.assertion.subject_uniprot.uniprot }}
 								{% else %}
 									{{ evidence.assertion.subject_curie }}
 								{% endif %}
-							</span>
+							</a>
 							<span class="badge bg-secondary">{{ evidence.get_top_predicate().replace('biolink:', '') }}</span>
-							<span class="badge bg-info">
+							<a class="badge bg-info" href="{{ evidence.assertion.get_object_link() }}" target="_blank">
 								{% if evidence.assertion.object_uniprot %}
 									{{ evidence.assertion.object_uniprot.uniprot }}
 								{% else %}
 									{{ evidence.assertion.object_curie }}
 								{% endif %}
-							</span>
+							</a>
 						</dd>
 
 					</dl>
