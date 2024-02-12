@@ -39,6 +39,13 @@ class Assertion(Model):
                    for evidence in self.evidence_list
                    if evidence.get_top_predicate() != 'false')
 
+    def get_current_evidences(self):
+        evidences = []
+        for evidence in self.evidence_list:
+            if 2 in [v.version for v in evidence.version]:
+                evidences.append(evidence)
+        return evidences
+
     def get_aggregate_score(self, predicate) -> float:
         relevant_scores = [evidence.get_score() for evidence in self.evidence_list if evidence.get_top_predicate() == predicate]
         return fsum(relevant_scores) / float(len(relevant_scores))

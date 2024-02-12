@@ -47,6 +47,13 @@ def assertion_lookup(aid):
     assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
     if assertion_query_by_id.count() == 0:
         return "No results found"
+    assertion = assertion_query_by_id.one()
+    current_version_evidence_count = 0
+    for evidence in assertion.evidence_list:
+        if 2 in [v.version for v in evidence.version]:
+            current_version_evidence_count += 1
+    if current_version_evidence_count == 0:
+        return "No results found in current version"
     return render_template("assertion.html", title="Assertion Display", assertion=assertion_query_by_id.one())
 
 
@@ -57,7 +64,10 @@ def evidence_lookup(evidence_id):
     evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
     if evidence_query_by_id.count() == 0:
         return "No results found"
-    return render_template("evidence.html", title="Evidence Display", evidence=evidence_query_by_id.one())
+    evidence = evidence_query_by_id.one()
+    if 2 not in [v.version for v in evidence.version]:
+        return "No results found in current version"
+    return render_template("evidence.html", title="Evidence Display", evidence=evidence)
 
 
 @app.route('/semmed/<semmed_id>', strict_slashes=False)
