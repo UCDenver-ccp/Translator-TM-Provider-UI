@@ -136,6 +136,8 @@ def assertion_query():
         edges = []
         for edge in get_edge_list(assertion_list, use_uniprot=(subject_curie.startswith('UniProtKB') or
                                                                object_curie.startswith('UniProtKB'))):
+            if 2 not in edge["version"]:
+                continue
             if edge["predicate_curie"] == predicate_curie or predicate_curie == 'Any':
                 edges.append(edge)
         normalized_nodes = services.get_normalized_nodes([subject_curie, object_curie])
@@ -288,7 +290,8 @@ def get_edge_list(assertions, use_uniprot=False):
                         "subject_span": ev.subject_entity.span if ev.subject_entity else "0|0",
                         "object_span": ev.object_entity.span if ev.object_entity else "0|0",
                         "subject_curie": sub,
-                        "object_curie": obj
+                        "object_curie": obj,
+                        "version": [v.version for v in ev.version]
                     })
     return edge_list
 
