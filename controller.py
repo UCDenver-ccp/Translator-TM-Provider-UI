@@ -8,6 +8,7 @@ import models
 import services
 import json
 import jsonpickle
+import logging
 
 config = {
     "DEBUG": True,
@@ -64,6 +65,25 @@ def assertion_lookup(aid):
     one = assertion_query_by_id.one()
     one_data = jsonpickle.encode(one, unpicklable=False)
     return json.dumps(one_data)
+
+
+@app.route('/dashboard', strict_slashes=False)
+@cache.cached(timeout=30)
+def dashboard_page():
+    logging.info('starting')
+    # pmc, pmid = get_documents_counts(1)
+    pmc = 1159142
+    pmid = 2174169
+    logging.info('got document counts')
+    # assoc = {'a': 1, 'b': 2}
+    # asser = {'x': 100, 'y': 150}
+    assoc = get_association_counts()
+    logging.info(f'got association counts {assoc}')
+    asser = get_assertion_counts()
+    logging.info(f'got assertion counts {asser}')
+    return render_template('dashboard.html',
+                           pmc_count=pmc, pmid_count=pmid,
+                           records_dict=assoc, assertions_dict=asser)
 
 
 @app.route('/evidence/<evidence_id>', strict_slashes=False)
@@ -309,6 +329,8 @@ def get_edge_list(assertions, use_uniprot=False):
             for ev in assertion.evidence_list:
                 if ev.get_top_predicate() == predicate:
                     edge_list.append({
+                        "assertion_id": ev.assertion_id,
+                        "evidence_id": ev.evidence_id,
                         "document_pmid": ev.document_id,
                         "document_zone": ev.document_zone,
                         "document_year": ev.document_year_published,
@@ -386,6 +408,73 @@ def get_translated_options() -> (list, list):
     return subjects, objects
 
 
+def get_documents_counts(version=1) -> tuple[int, int]:
+    pmc_query = text("SELECT SUM(IF(docid LIKE 'PMC%', 1, 0)) AS PMC, SUM(IF(docid LIKE 'PMID%', 1, 0)) AS PMID FROM "
+                     "(SELECT DISTINCT(document_id) as docid "
+                     "FROM evidence JOIN evidence_version ON "
+                     "evidence.evidence_id = evidence_version.evidence_id "
+                     "WHERE evidence_version.version = :v) x")
+    # pmid_query = text("SELECT COUNT(DISTINCT(document_id)) "
+    #                  "FROM evidence JOIN evidence_version ON "
+    #                  "evidence.evidence_id = evidence_version.evidence_id "
+    #                  "WHERE evidence_version.version = :v AND document_id LIKE 'PMID%'")
+    s = Session()
+    logging.info('starting query')
+    row, = s.execute(pmc_query, {'v': version}).all()
+    pmc_count = row['PMC']
+    pmid_count = row['PMID']
+
+    # logging.info('starting query 2')
+    # pmid_count = s.execute(pmid_query, {'v': version}).scalar()
+    # document_query = text("SELECT DISTINCT(e.document_id) "
+    #                       "FROM evidence e INNER JOIN evidence_version ev ON e.evidence_id = ev.evidence_id "
+    #                       "WHERE version = :v")
+    # document_list = [doc_id for doc_id, in s.execute(document_query, {'v': version})]
+    logging.info('data retrieved')
+    # pmc_count = 0
+    # pmid_count = 0
+    # for document in document_list:
+    #     if document.startswith('PMC'):
+    #         pmc_count += 1
+    #     elif document.startswith('PMID'):
+    #         pmid_count += 1
+    # logging.info('counting complete')
+    return pmc_count, pmid_count
+
+def get_association_counts() -> dict[str, int]:
+    association_query = text("select assertion.association_curie, top_evidence_scores.predicate_curie, count(1) AS c "
+                             "from evidence "
+                             "join evidence_version on evidence.evidence_id = evidence_version.evidence_id "
+                             "join top_evidence_scores on evidence.evidence_id = top_evidence_scores.evidence_id "
+                             "join assertion on evidence.assertion_id = assertion.assertion_id "
+                             "where evidence_version.version = 1 "
+                             "group by assertion.association_curie, top_evidence_scores.predicate_curie")
+    # ass_query = text("SELECT association_curie, 'related_to' AS predicate_curie, 7 AS c FROM assertion LIMIT 1000")
+    s = Session()
+    association_count_dict = {}
+    for row in s.execute(association_query):
+        key = row['association_curie'] + '|' + row['predicate_curie']
+        value = row['c']
+        association_count_dict[key] = value
+    return association_count_dict
+
+
+def get_assertion_counts() -> dict[str, int]:
+    assertion_count_query = text("select assertion.association_curie, count(1) AS c "
+         "from assertion "
+         "join evidence on evidence.assertion_id = assertion.assertion_id "
+         "join evidence_version on evidence.evidence_id = evidence_version.evidence_id "
+         "where evidence_version.version = 2 "
+         "group by assertion.association_curie")
+    s = Session()
+    assertion_count_dict = {}
+    for row in s.execute(assertion_count_query):
+        key = row['association_curie']
+        value = row['c']
+        assertion_count_dict[key] = value
+    return assertion_count_dict
+
+
 @app.teardown_appcontext
 def shutdown_session(response_or_exc):
     Session.remove()
@@ -399,6 +488,8 @@ assert username
 assert secret_password
 models.init_db(username=username, password=secret_password)
 Session = scoped_session(models.Session)
+logging.basicConfig(format='%(asctime)s %(module)s:%(funcName)s:%(levelname)s: %(message)s', level=logging.INFO)
+logging.info('Starting Main')
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))

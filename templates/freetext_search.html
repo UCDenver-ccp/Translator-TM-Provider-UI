@@ -112,7 +112,11 @@
 				let sentenceHTML = spliceStrings(item.sentence, spliceList);
 				let evidenceHTML = '<a target="_blank" href="https://pubmed.ncbi.nlm.nih.gov/' + item.document_pmid.split(':')[1] + '/">'
 					+ item.document_pmid + '<small><i class="bi bi-box-arrow-up-right"></i></small></a> ' + item.document_year + ' ' + item.document_zone
-					+ ' (Confidence - ' + item.confidence_score + ') [' + item.predicate_curie + '] : <br>';
+					+ ' (Confidence - ' + item.confidence_score + ') [' + item.predicate_curie + ']'
+					+ '<a target="_blank" href="https://tmui.text-mining-kp.org/assertion/' + item.assertion_id + '">'
+					+ 'Assertion Feedback<small><i class="bi bi-box-arrow-up-right"></i></small></a>'
+					+ '<a target="_blank" href="https://tmui.text-mining-kp.org/evidence/' + item.evidence_id + '">'
+					+ 'Evidence Feedback<small><i class="bi bi-box-arrow-up-right"></i></small></a>: <br>';
 				listElement = document.createElement('li');
 				listElement.className = 'list-group-item';
 				listElement.innerHTML = evidenceHTML + sentenceHTML;
