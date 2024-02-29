@@ -51,6 +51,13 @@ def assertion_page(aid):
     assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
     if assertion_query_by_id.count() == 0:
         return "No results found"
+    assertion = assertion_query_by_id.one()
+    current_version_evidence_count = 0
+    for evidence in assertion.evidence_list:
+        if 2 in [v.version for v in evidence.version]:
+            current_version_evidence_count += 1
+    if current_version_evidence_count == 0:
+        return "No results found in current version"
     return render_template("assertion.html", title="Assertion Display", assertion=assertion_query_by_id.one())
 
 
@@ -93,7 +100,10 @@ def evidence_page(evidence_id):
     evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
     if evidence_query_by_id.count() == 0:
         return "No results found"
-    return render_template("evidence.html", title="Evidence Display", evidence=evidence_query_by_id.one())
+    evidence = evidence_query_by_id.one()
+    if 2 not in [v.version for v in evidence.version]:
+        return "No results found in current version"
+    return render_template("evidence.html", title="Evidence Display", evidence=evidence)
 
 
 @app.route('/api/evidence/<evidence_id>', strict_slashes=False)
@@ -186,6 +196,8 @@ def assertion_query():
         edges = []
         for edge in get_edge_list(assertion_list, use_uniprot=(subject_curie.startswith('UniProtKB') or
                                                                object_curie.startswith('UniProtKB'))):
+            if 2 not in edge["version"]:
+                continue
             if edge["predicate_curie"] == predicate_curie or predicate_curie == 'Any':
                 edges.append(edge)
         normalized_nodes = services.get_normalized_nodes([subject_curie, object_curie])
@@ -340,7 +352,8 @@ def get_edge_list(assertions, use_uniprot=False):
                         "subject_span": ev.subject_entity.span if ev.subject_entity else "0|0",
                         "object_span": ev.object_entity.span if ev.object_entity else "0|0",
                         "subject_curie": sub,
-                        "object_curie": obj
+                        "object_curie": obj,
+                        "version": [v.version for v in ev.version]
                     })
     return edge_list
 

@@ -39,7 +39,7 @@
 			</span>
 		</h4>
 		<div class="accordion" id="evidenceAccordion">
-			{% for ev in assertion.evidence_list[:500] %}
+			{% for ev in assertion.get_current_evidences()[:500] %}
 				{% if ev.get_top_predicate() != 'false' %}
 			<div class="accordion-item">
 				<h2 class="accordion-header" id="header_{{ ev.evidence_id }}">

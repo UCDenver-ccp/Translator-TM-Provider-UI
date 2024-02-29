@@ -10,6 +10,7 @@ from math import fsum
 Model = declarative_base(name='Model')
 Session = None
 
+
 # region Text Mined Assertion Models
 class Assertion(Model):
     __tablename__ = 'assertion'
@@ -65,6 +66,13 @@ class Assertion(Model):
         return set(evidence.get_top_predicate()
                    for evidence in self.evidence_list
                    if evidence.get_top_predicate() != 'false')
+
+    def get_current_evidences(self):
+        evidences = []
+        for evidence in self.evidence_list:
+            if 2 in [v.version for v in evidence.version]:
+                evidences.append(evidence)
+        return evidences
 
     def get_aggregate_score(self, predicate) -> float:
         relevant_scores = [evidence.get_score() for evidence in self.evidence_list if evidence.get_top_predicate() == predicate]
@@ -234,6 +242,7 @@ class Evidence(Model):
     document_year_published = Column(Integer)
     evidence_scores = relationship('EvidenceScore', lazy='joined')
     actual_year = relationship('DocumentYear', foreign_keys=document_id, lazy='joined')
+    version = relationship('EvidenceVersion', lazy='joined')
 
     def __init__(self, evidence_id, assertion_id, document_id, sentence, subject_entity_id, object_entity_id,
                  document_zone, document_publication_type, document_year_published):
@@ -429,9 +438,20 @@ class EvidenceFeedbackAnswer(Model):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
+class EvidenceVersion(Model):
+    __tablename__ = 'evidence_version'
+    evidence_id = Column(String, ForeignKey('evidence.evidence_id'), primary_key=True)
+    version = Column(Integer, primary_key=True)
+
+    def __init__(self, evidence_id, version):
+        self.evidence_id = evidence_id
+        self.version = version
+
 # endregion
 
 # region TM to SemMedDB Models
+
+
 class Semmed(Model):
     __tablename__ = 'semmed'
     sid = Column('id', Integer, ForeignKey('tm_semmed.semmed_id'), primary_key=True)
@@ -522,6 +542,8 @@ class UmlsToObo(Model):
 # endregion
 
 # region SemMedDB Models
+
+
 class Citations(Model):
     __tablename__ = 'SEMMEDDB_CITATIONS'
     pmid = Column(String(20), primary_key=True)
