@@ -78,15 +78,12 @@ def assertion_lookup(aid):
 @cache.cached(timeout=30)
 def dashboard_page():
     logging.info('starting')
-    # pmc, pmid = get_documents_counts(1)
-    pmc = 1159142
-    pmid = 2174169
+    pmc, pmid = get_documents_counts(2)
     logging.info('got document counts')
-    # assoc = {'a': 1, 'b': 2}
-    # asser = {'x': 100, 'y': 150}
-    assoc = get_association_counts()
+
+    assoc = get_association_counts(2)
     logging.info(f'got association counts {assoc}')
-    asser = get_assertion_counts()
+    asser = get_assertion_counts(2)
     logging.info(f'got assertion counts {asser}')
     return render_template('dashboard.html',
                            pmc_count=pmc, pmid_count=pmid,
@@ -422,68 +419,41 @@ def get_translated_options() -> (list, list):
 
 
 def get_documents_counts(version=1) -> tuple[int, int]:
-    pmc_query = text("SELECT SUM(IF(docid LIKE 'PMC%', 1, 0)) AS PMC, SUM(IF(docid LIKE 'PMID%', 1, 0)) AS PMID FROM "
-                     "(SELECT DISTINCT(document_id) as docid "
-                     "FROM evidence JOIN evidence_version ON "
-                     "evidence.evidence_id = evidence_version.evidence_id "
-                     "WHERE evidence_version.version = :v) x")
-    # pmid_query = text("SELECT COUNT(DISTINCT(document_id)) "
-    #                  "FROM evidence JOIN evidence_version ON "
-    #                  "evidence.evidence_id = evidence_version.evidence_id "
-    #                  "WHERE evidence_version.version = :v AND document_id LIKE 'PMID%'")
+    pmc_query = text("SELECT document_type, count FROM document_counts WHERE version = :v")
     s = Session()
     logging.info('starting query')
-    row, = s.execute(pmc_query, {'v': version}).all()
-    pmc_count = row['PMC']
-    pmid_count = row['PMID']
+    pmc_count = 0
+    pmid_count = 0
+    for row in s.execute(pmc_query, {'v': version}):
+        if row['document_type'] == 'PMC':
+            pmc_count = row['count']
+        elif row['document_type'] == 'PMID':
+            pmid_count = row['count']
 
-    # logging.info('starting query 2')
-    # pmid_count = s.execute(pmid_query, {'v': version}).scalar()
-    # document_query = text("SELECT DISTINCT(e.document_id) "
-    #                       "FROM evidence e INNER JOIN evidence_version ev ON e.evidence_id = ev.evidence_id "
-    #                       "WHERE version = :v")
-    # document_list = [doc_id for doc_id, in s.execute(document_query, {'v': version})]
     logging.info('data retrieved')
-    # pmc_count = 0
-    # pmid_count = 0
-    # for document in document_list:
-    #     if document.startswith('PMC'):
-    #         pmc_count += 1
-    #     elif document.startswith('PMID'):
-    #         pmid_count += 1
-    # logging.info('counting complete')
     return pmc_count, pmid_count
 
-def get_association_counts() -> dict[str, int]:
-    association_query = text("select assertion.association_curie, top_evidence_scores.predicate_curie, count(1) AS c "
-                             "from evidence "
-                             "join evidence_version on evidence.evidence_id = evidence_version.evidence_id "
-                             "join top_evidence_scores on evidence.evidence_id = top_evidence_scores.evidence_id "
-                             "join assertion on evidence.assertion_id = assertion.assertion_id "
-                             "where evidence_version.version = 1 "
-                             "group by assertion.association_curie, top_evidence_scores.predicate_curie")
-    # ass_query = text("SELECT association_curie, 'related_to' AS predicate_curie, 7 AS c FROM assertion LIMIT 1000")
+
+def get_association_counts(version=1) -> dict[str, dict[str, int]]:
+    association_query = text("SELECT association_curie, predicate_curie, count FROM evidence_counts WHERE version = :v")
     s = Session()
     association_count_dict = {}
-    for row in s.execute(association_query):
-        key = row['association_curie'] + '|' + row['predicate_curie']
-        value = row['c']
-        association_count_dict[key] = value
+    for row in s.execute(association_query, {'v': version}):
+        key = row['association_curie']
+        if key in association_count_dict:
+            association_count_dict[key][row['predicate_curie']] = row['count']
+        else:
+            association_count_dict[key] = {row['predicate_curie']: row['count']}
     return association_count_dict
 
 
-def get_assertion_counts() -> dict[str, int]:
-    assertion_count_query = text("select assertion.association_curie, count(1) AS c "
-         "from assertion "
-         "join evidence on evidence.assertion_id = assertion.assertion_id "
-         "join evidence_version on evidence.evidence_id = evidence_version.evidence_id "
-         "where evidence_version.version = 2 "
-         "group by assertion.association_curie")
+def get_assertion_counts(version=1) -> dict[str, int]:
+    assertion_count_query = text("SELECT association_curie, count FROM assertion_counts WHERE version = :v")
     s = Session()
     assertion_count_dict = {}
-    for row in s.execute(assertion_count_query):
+    for row in s.execute(assertion_count_query, {'v': version}):
         key = row['association_curie']
-        value = row['c']
+        value = row['count']
         assertion_count_dict[key] = value
     return assertion_count_dict
 
