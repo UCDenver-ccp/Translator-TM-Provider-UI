@@ -14,7 +14,43 @@
 <body>
 <p>Unique PMC documents that support at least one assertion: {{ pmc_count }}</p>
 <p>Unique PubMed documents that support at least one assertion: {{ pmid_count }}</p>
-<p>Record counts by association type: {{ records_dict }}</p>
-<p>Assertion count by type: {{ assertions_dict }}</p>
+<p>Record Count by Assertion Type</p>
+	<table class="table">
+		<thead>
+			<tr>
+				<th scope="col">Association Curie</th>
+				<th scope="col">Predicate Curie</th>
+				<th scope="col">Count</th>
+			</tr>
+		</thead>
+		<tbody>
+		{% for association in records_dict.keys() %}
+			{% for predicate in records_dict[association].keys() %}
+			<tr>
+				<td>Assoc: {{ association }}</td>
+				<td>Pred: {{ predicate }}</td>
+				<td>Count: {{ records_dict[association][predicate] }}</td>
+			</tr>
+			{% endfor %}
+		{% endfor %}
+		</tbody>
+	</table>
+	<p>Assertion Count by Association Type</p>
+	<table class="table">
+		<thead>
+			<tr>
+				<th scope="col">Association Curie</th>
+				<th scope="col">Count</th>
+			</tr>
+		</thead>
+		<tbody>
+		{% for association_curie in assertions_dict.keys() %}
+			<tr>
+				<td>{{ association_curie }}</td>
+				<td>{{ assertions_dict[association_curie] }}</td>
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
 </body>
 </html>
