@@ -74,17 +74,18 @@ def assertion_lookup(aid):
     return json.dumps(one_data)
 
 
-@app.route('/dashboard', strict_slashes=False)
+@app.route('/dashboard/', strict_slashes=False)
+@app.route('/dashboard/<version>', strict_slashes=False)
 @cache.cached(timeout=30)
-def dashboard_page():
+def dashboard_page(version=2):
     logging.info('starting')
-    pmc, pmid = get_documents_counts(2)
+    pmc, pmid = get_documents_counts(version)
     logging.info('got document counts')
 
-    assoc = get_association_counts(2)
-    logging.info(f'got association counts {assoc}')
-    asser = get_assertion_counts(2)
-    logging.info(f'got assertion counts {asser}')
+    assoc = get_association_counts(version)
+    logging.info(f'got association counts')
+    asser = get_assertion_counts(version)
+    logging.info(f'got assertion counts')
     return render_template('dashboard.html',
                            pmc_count=pmc, pmid_count=pmid,
                            records_dict=assoc, assertions_dict=asser)

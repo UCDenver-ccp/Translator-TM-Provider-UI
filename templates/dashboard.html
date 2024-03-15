@@ -27,9 +27,9 @@
 		{% for association in records_dict.keys() %}
 			{% for predicate in records_dict[association].keys() %}
 			<tr>
-				<td>Assoc: {{ association }}</td>
-				<td>Pred: {{ predicate }}</td>
-				<td>Count: {{ records_dict[association][predicate] }}</td>
+				<td>{{ association }}</td>
+				<td>{{ predicate }}</td>
+				<td>{{ records_dict[association][predicate] }}</td>
 			</tr>
 			{% endfor %}
 		{% endfor %}
