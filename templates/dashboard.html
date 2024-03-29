@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="">
+	<meta name="author" content="">
+	<title>{{ title }}</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-/bQdsTh/da6pkI1MST/rWKFNjaCP5gBSY4sEBT38Q/9RBh9AH40zEOg7Hlq2THRZ" crossorigin="anonymous"></script>
+	<script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+</head>
+<body>
+<p>Unique PMC documents that support at least one assertion: {{ pmc_count }}</p>
+<p>Unique PubMed documents that support at least one assertion: {{ pmid_count }}</p>
+<p>Record Count by Assertion Type</p>
+	<table class="table">
+		<thead>
+			<tr>
+				<th scope="col">Association Curie</th>
+				<th scope="col">Predicate Curie</th>
+				<th scope="col">Count</th>
+			</tr>
+		</thead>
+		<tbody>
+		{% for association in records_dict.keys() %}
+			{% for predicate in records_dict[association].keys() %}
+			<tr>
+				<td>{{ association }}</td>
+				<td>{{ predicate }}</td>
+				<td>{{ records_dict[association][predicate] }}</td>
+			</tr>
+			{% endfor %}
+		{% endfor %}
+		</tbody>
+	</table>
+	<p>Assertion Count by Association Type</p>
+	<table class="table">
+		<thead>
+			<tr>
+				<th scope="col">Association Curie</th>
+				<th scope="col">Count</th>
+			</tr>
+		</thead>
+		<tbody>
+		{% for association_curie in assertions_dict.keys() %}
+			<tr>
+				<td>{{ association_curie }}</td>
+				<td>{{ assertions_dict[association_curie] }}</td>
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+</body>
+</html>

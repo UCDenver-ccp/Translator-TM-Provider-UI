@@ -8,6 +8,7 @@ import models
 import services
 import json
 import jsonpickle
+import logging
 
 config = {
     "DEBUG": True,
@@ -50,6 +51,13 @@ def assertion_page(aid):
     assertion_query_by_id = s.query(models.Assertion).filter(models.Assertion.assertion_id == aid)
     if assertion_query_by_id.count() == 0:
         return "No results found"
+    assertion = assertion_query_by_id.one()
+    current_version_evidence_count = 0
+    for evidence in assertion.evidence_list:
+        if 2 in [v.version for v in evidence.version]:
+            current_version_evidence_count += 1
+    if current_version_evidence_count == 0:
+        return "No results found in current version"
     return render_template("assertion.html", title="Assertion Display", assertion=assertion_query_by_id.one())
 
 
@@ -66,6 +74,23 @@ def assertion_lookup(aid):
     return json.dumps(one_data)
 
 
+@app.route('/dashboard/', strict_slashes=False)
+@app.route('/dashboard/<version>', strict_slashes=False)
+@cache.cached(timeout=30)
+def dashboard_page(version=2):
+    logging.info('starting')
+    pmc, pmid = get_documents_counts(version)
+    logging.info('got document counts')
+
+    assoc = get_association_counts(version)
+    logging.info(f'got association counts')
+    asser = get_assertion_counts(version)
+    logging.info(f'got assertion counts')
+    return render_template('dashboard.html',
+                           pmc_count=pmc, pmid_count=pmid,
+                           records_dict=assoc, assertions_dict=asser)
+
+
 @app.route('/evidence/<evidence_id>', strict_slashes=False)
 @cache.cached(timeout=30)
 def evidence_page(evidence_id):
@@ -73,7 +98,10 @@ def evidence_page(evidence_id):
     evidence_query_by_id = s.query(models.Evidence).filter(models.Evidence.evidence_id == evidence_id)
     if evidence_query_by_id.count() == 0:
         return "No results found"
-    return render_template("evidence.html", title="Evidence Display", evidence=evidence_query_by_id.one())
+    evidence = evidence_query_by_id.one()
+    if 2 not in [v.version for v in evidence.version]:
+        return "No results found in current version"
+    return render_template("evidence.html", title="Evidence Display", evidence=evidence)
 
 
 @app.route('/api/evidence/<evidence_id>', strict_slashes=False)
@@ -166,6 +194,8 @@ def assertion_query():
         edges = []
         for edge in get_edge_list(assertion_list, use_uniprot=(subject_curie.startswith('UniProtKB') or
                                                                object_curie.startswith('UniProtKB'))):
+            if 2 not in edge["version"]:
+                continue
             if edge["predicate_curie"] == predicate_curie or predicate_curie == 'Any':
                 edges.append(edge)
         normalized_nodes = services.get_normalized_nodes([subject_curie, object_curie])
@@ -309,6 +339,8 @@ def get_edge_list(assertions, use_uniprot=False):
             for ev in assertion.evidence_list:
                 if ev.get_top_predicate() == predicate:
                     edge_list.append({
+                        "assertion_id": ev.assertion_id,
+                        "evidence_id": ev.evidence_id,
                         "document_pmid": ev.document_id,
                         "document_zone": ev.document_zone,
                         "document_year": ev.document_year_published,
@@ -318,7 +350,8 @@ def get_edge_list(assertions, use_uniprot=False):
                         "subject_span": ev.subject_entity.span if ev.subject_entity else "0|0",
                         "object_span": ev.object_entity.span if ev.object_entity else "0|0",
                         "subject_curie": sub,
-                        "object_curie": obj
+                        "object_curie": obj,
+                        "version": [v.version for v in ev.version]
                     })
     return edge_list
 
@@ -386,6 +419,46 @@ def get_translated_options() -> (list, list):
     return subjects, objects
 
 
+def get_documents_counts(version=1) -> tuple[int, int]:
+    pmc_query = text("SELECT document_type, count FROM document_counts WHERE version = :v")
+    s = Session()
+    logging.info('starting query')
+    pmc_count = 0
+    pmid_count = 0
+    for row in s.execute(pmc_query, {'v': version}):
+        if row['document_type'] == 'PMC':
+            pmc_count = row['count']
+        elif row['document_type'] == 'PMID':
+            pmid_count = row['count']
+
+    logging.info('data retrieved')
+    return pmc_count, pmid_count
+
+
+def get_association_counts(version=1) -> dict[str, dict[str, int]]:
+    association_query = text("SELECT association_curie, predicate_curie, count FROM evidence_counts WHERE version = :v")
+    s = Session()
+    association_count_dict = {}
+    for row in s.execute(association_query, {'v': version}):
+        key = row['association_curie']
+        if key in association_count_dict:
+            association_count_dict[key][row['predicate_curie']] = row['count']
+        else:
+            association_count_dict[key] = {row['predicate_curie']: row['count']}
+    return association_count_dict
+
+
+def get_assertion_counts(version=1) -> dict[str, int]:
+    assertion_count_query = text("SELECT association_curie, count FROM assertion_counts WHERE version = :v")
+    s = Session()
+    assertion_count_dict = {}
+    for row in s.execute(assertion_count_query, {'v': version}):
+        key = row['association_curie']
+        value = row['count']
+        assertion_count_dict[key] = value
+    return assertion_count_dict
+
+
 @app.teardown_appcontext
 def shutdown_session(response_or_exc):
     Session.remove()
@@ -399,6 +472,8 @@ assert username
 assert secret_password
 models.init_db(username=username, password=secret_password)
 Session = scoped_session(models.Session)
+logging.basicConfig(format='%(asctime)s %(module)s:%(funcName)s:%(levelname)s: %(message)s', level=logging.INFO)
+logging.info('Starting Main')
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
